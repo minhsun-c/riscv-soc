@@ -1,0 +1,64 @@
+name: SoC Component Verification
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test-components:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [
+          mux2, pc, sram, decoder, ctrl, regfile, imm_gen, 
+          alu, bcu, hdu, if_id, id_ex, ex_mem, mem_wb,
+          if_stage, id_stage, ex_stage, wb_stage,
+          core-1, core-2, core-3, core-4, core-5, core-6, core-7, core-8,
+          cpu-1, cpu-2, cpu-3, cpu-4, cpu-5, cpu-6, cpu-7, cpu-8
+        ]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Verilator & RISC-V Toolchain
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq verilator gcc-riscv64-unknown-elf
+          verilator --version
+          riscv64-unknown-elf-gcc --version
+
+      - name: Set Simulation Variables
+        id: vars
+        run: |
+          # Check if target is 'core-X' or 'cpu-X'
+          if [[ "${{ matrix.target }}" =~ ^(core|cpu)-([0-9]+)$ ]]; then
+            echo "MODULE=${BASH_REMATCH[1]}" >> $GITHUB_OUTPUT
+            echo "TESTNUM=${BASH_REMATCH[2]}" >> $GITHUB_OUTPUT
+          else
+            echo "MODULE=${{ matrix.target }}" >> $GITHUB_OUTPUT
+            echo "TESTNUM=1" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run Simulation
+        run: |
+          set -o pipefail
+          # Pass TESTNUM. Based on your Makefile, it is used for core/cpu and ignored by others.
+          # We use the MODULE and TESTNUM outputs from the previous step.
+          make ${{ steps.vars.outputs.MODULE }} TESTNUM=${{ steps.vars.outputs.TESTNUM }} 2>&1 | tee output.log
+
+      - name: Verify Test Summary
+        if: always()
+        run: |
+          if grep -q "STATUS: FAILED" output.log; then
+            echo "::error::Simulation failed for ${{ matrix.target }} - Check logs for details"
+            exit 1
+          fi
+          
+          if ! grep -q "STATUS: ALL PASSED" output.log; then
+            echo "::error::Simulation did not reach completion summary for ${{ matrix.target }}"
+            exit 1
+          fi
