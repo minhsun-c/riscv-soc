@@ -26,7 +26,7 @@ void load_program(const char *filename)
     memcpy(dmem, imem, sizeof(imem));
 }
 
-void verify_results(Vcore *dut)
+void verify_results(Vcore_core *dut)
 {
     printf("\n--- Verifying Test 6 Memory States (C Compiler Output) ---\n");
 

@@ -26,14 +26,14 @@ void load_program()
         0x00010193;  // 24: addi x3, x2, 0      (x3 = final sum, expected 15)
 }
 
-void verify_results(Vcore *dut)
+void verify_results(Vcore_core *dut)
 {
     printf("\n--- Verifying Test 3 Register States ---\n");
     // The loop calculates 5 + 4 + 3 + 2 + 1 = 15
-    EXPECT_EQ(dut->core->u_regfile->x[1], 0,
+    EXPECT_EQ(dut->u_regfile->x[1], 0,
               "Loop Counter check (x1 reached 0)");
-    EXPECT_EQ(dut->core->u_regfile->x[2], 15, "Accumulator check (x2 = 15)");
-    EXPECT_EQ(dut->core->u_regfile->x[3], 15,
+    EXPECT_EQ(dut->u_regfile->x[2], 15, "Accumulator check (x2 = 15)");
+    EXPECT_EQ(dut->u_regfile->x[3], 15,
               "Final Assignment check (x3 = 15)");
 }
 

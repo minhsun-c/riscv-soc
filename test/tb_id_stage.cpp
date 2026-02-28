@@ -119,7 +119,7 @@ int main(int argc, char **argv)
             RD_NONE, "14. BGEU");
 
     // --- 15-18. JUMPS & UPPER IMM ---
-    test_id(dut, 0x7D0000EF, 0, 0, 2000, 0, 1, 1, 0, ADD, 0, NOBR, 0, 1, 0, 0,
+    test_id(dut, 0x7D0000EF, 0, 0, 2000, 0, 1, 1, 1, ADD, 0, NOBR, 0, 1, 0, 0,
             RD_PC4, "15. JAL");
     test_id(dut, 0x00008067, 10, 0, 0, 0, 1, 0, 1, ADD, 0, NOBR, 0, 1, 0, 0,
             RD_PC4, "16. JALR");

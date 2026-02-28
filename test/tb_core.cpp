@@ -4,6 +4,7 @@
 #include "Vcore.h"
 #include "Vcore_core.h"
 #include "Vcore_regfile.h"
+#include "Vcore___024root.h"
 #include "checker.h"
 
 #define MODULE_HAS_CLK 1
@@ -49,7 +50,6 @@ int main(int argc, char **argv)
     load_program();
 #endif
 
-    // 1. Reset Phase
     dut->rst_i = 1;
     tick(dut);
     dut->rst_i = 0;
@@ -69,9 +69,7 @@ int main(int argc, char **argv)
         tick(dut);
     }
 
-    // 2. Final Verification
-    // Call the verify_results() from the included header
-    verify_results(dut);
+    verify_results(dut->rootp->core);
 
     printf("--- Core Simulation Complete ---\n");
 

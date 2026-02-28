@@ -40,32 +40,32 @@ void load_program()
     imem[9] = 0x005444b3;  // xor   x9, x8, x5 (x9 = 1 ^ 100 = 101)
 }
 
-void verify_results(Vcore *dut)
+void verify_results(Vcore_core *dut)
 {
     printf("\n--- Verifying Test 5 Register States ---\n");
 
     // Upper Immediates
-    EXPECT_EQ(dut->core->u_regfile->x[1], 0x00002000,
+    EXPECT_EQ(dut->u_regfile->x[1], 0x00002000,
               "AUIPC check 1 (x1 = 0x2000)");
-    EXPECT_EQ(dut->core->u_regfile->x[2], 0x00000004,
+    EXPECT_EQ(dut->u_regfile->x[2], 0x00000004,
               "AUIPC check 2 (x2 = PC 4 + 0)");
-    EXPECT_EQ(dut->core->u_regfile->x[3], 0x00005000,
+    EXPECT_EQ(dut->u_regfile->x[3], 0x00005000,
               "LUI check (x3 = 0x5000)");
 
     // Dynamic Jumps
-    EXPECT_EQ(dut->core->u_regfile->x[4], 16,
+    EXPECT_EQ(dut->u_regfile->x[4], 16,
               "JALR Link check (x4 saved PC+4 = 16)");
-    EXPECT_EQ(dut->core->u_regfile->x[5], 100,
+    EXPECT_EQ(dut->u_regfile->x[5], 100,
               "JALR Target check (x5 is 100, PC 16 was skipped)");
 
     // Advanced ALU
-    EXPECT_EQ(dut->core->u_regfile->x[6], 0xFFFFFFF6,
+    EXPECT_EQ(dut->u_regfile->x[6], 0xFFFFFFF6,
               "Negative ADDI check (x6 = -10)");
-    EXPECT_EQ(dut->core->u_regfile->x[7], 0xFFFFFFFB,
+    EXPECT_EQ(dut->u_regfile->x[7], 0xFFFFFFFB,
               "SRAI Arithmetic Shift check (x7 = -5)");
-    EXPECT_EQ(dut->core->u_regfile->x[8], 1,
+    EXPECT_EQ(dut->u_regfile->x[8], 1,
               "SLT check (x8 = 1, since -10 < -5)");
-    EXPECT_EQ(dut->core->u_regfile->x[9], 101,
+    EXPECT_EQ(dut->u_regfile->x[9], 101,
               "XOR check (x9 = 1 ^ 100 = 101)");
 }
 

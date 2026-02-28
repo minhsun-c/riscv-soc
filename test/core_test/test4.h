@@ -30,20 +30,20 @@ void load_program()
         0x00008067;  // jalr x0, 0(x1)      (Jump to address in x1, which is 8)
 }
 
-void verify_results(Vcore *dut)
+void verify_results(Vcore_core *dut)
 {
     printf("\n--- Verifying Test 4 Register States ---\n");
 
-    EXPECT_EQ(dut->core->u_regfile->x[2], 4,
+    EXPECT_EQ(dut->u_regfile->x[2], 4,
               "Stack Pointer init check (x2 = 4)");
 
-    EXPECT_EQ(dut->core->u_regfile->x[1], 8,
+    EXPECT_EQ(dut->u_regfile->x[1], 8,
               "JAL Link check (x1 saved return address PC 8)");
 
-    EXPECT_EQ(dut->core->u_regfile->x[4], 4,
+    EXPECT_EQ(dut->u_regfile->x[4], 4,
               "Stack LW/SW check (x4 successfully loaded 4 from memory)");
 
-    EXPECT_EQ(dut->core->u_regfile->x[3], 5,
+    EXPECT_EQ(dut->u_regfile->x[3], 5,
               "JALR Return check (x3 = 5, meaning CPU successfully returned to "
               "caller!)");
 }

@@ -16,7 +16,7 @@ void load_program(const char *filename)
     memcpy(dmem, imem, sizeof(imem));
 }
 
-void verify_results(Vcore *dut)
+void verify_results(Vcore_core *dut)
 {
     printf("\n--- Verifying Test 8 (Josephus Problem) ---\n");
     // For n=6, k=3, the winner is 1.

@@ -20,13 +20,13 @@ void load_program()
     imem[8] = 0x06400313;  // 32: addi x6, x0, 100  (x6 = 100)
 }
 
-void verify_results(Vcore *dut)
+void verify_results(Vcore_core *dut)
 {
     printf("\n--- Verifying Test 2 Register States ---\n");
-    EXPECT_EQ(dut->core->u_regfile->x[3], 30, "ADD check (x3 = 10 + 20)");
-    EXPECT_EQ(dut->core->u_regfile->x[4], 20, "SUB check (x4 = 30 - 10)");
-    EXPECT_EQ(dut->core->u_regfile->x[5], 30, "LW check (x5 loaded 30)");
-    EXPECT_EQ(dut->core->u_regfile->x[6], 100, "BEQ check (x6 is 100)");
+    EXPECT_EQ(dut->u_regfile->x[3], 30, "ADD check (x3 = 10 + 20)");
+    EXPECT_EQ(dut->u_regfile->x[4], 20, "SUB check (x4 = 30 - 10)");
+    EXPECT_EQ(dut->u_regfile->x[5], 30, "LW check (x5 loaded 30)");
+    EXPECT_EQ(dut->u_regfile->x[6], 100, "BEQ check (x6 is 100)");
 }
 
 #endif  // TEST2_H

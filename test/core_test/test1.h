@@ -12,10 +12,10 @@ void load_program()
     imem[2] = 0x002081b3;
 }
 
-void verify_results(Vcore *dut)
+void verify_results(Vcore_core *dut)
 {
     printf("\n--- Verifying Test 1 Register States ---\n");
-    EXPECT_EQ(dut->core->u_regfile->x[3], 30,
+    EXPECT_EQ(dut->u_regfile->x[3], 30,
               "Register x3 calculation check (10 + 20)");
 }
 
