@@ -57,10 +57,10 @@ int main(int argc, char **argv)
     printf("--- Starting Core Pipeline Simulation (TESTNUM=%d) ---\n", TESTNUM);
 
     for (int i = 0; i < 8000; i++) {
-        uint32_t pc_idx = dut->im_addr_o >> 2;
+        uint32_t pc_idx = (dut->im_addr_o & 0xFFF) >> 2;
         dut->im_data_i = imem[pc_idx];
 
-        uint32_t data_idx = dut->dm_addr_o >> 2;
+        uint32_t data_idx = (dut->dm_addr_o & 0xFFF) >> 2;
         if (dut->dm_we_o) {
             dmem[data_idx] = dut->dm_wdata_o;
         }
