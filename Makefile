@@ -1,7 +1,7 @@
 # --- Project Settings ---
 VERILATOR = verilator
-RTL_DIR   = core/riscv
-INC_DIR   = core/include
+RTL_DIR   = src/core
+INC_DIR   = src/include
 TEST_DIR  = test
 OBJ_DIR   = obj_dir
 SW_DIR    = $(TEST_DIR)/test_program
