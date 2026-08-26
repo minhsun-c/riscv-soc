@@ -4,7 +4,7 @@ TARGETS=(
   mux2 pc sram decoder ctrl regfile imm_gen 
   alu bcu hdu fwd btb bht if_id id_ex ex_mem mem_wb
   if_stage id_stage ex_stage wb_stage
-  core-1 core-2 core-3 core-4 core-5 core-6 core-7 core-8
+  core-1 core-2 core-3 core-4 core-5 core-6 core-7 core-8 core-10
   cpu-1 cpu-2 cpu-3 cpu-4 cpu-5 cpu-6 cpu-7 cpu-8
   riscv-tests
 )

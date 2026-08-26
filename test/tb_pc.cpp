@@ -12,14 +12,14 @@ vluint64_t sim_time;
 // Updated function signature to include jb_taken
 void test_pc(Vpc *dut,
              uint32_t pc_next,
-             bool jb_taken,
+             bool jb_taken,  // now called redirect_i on the DUT
              bool stall,
              bool rst,
              uint32_t expected,
              const char *label)
 {
     dut->pc_next_i = pc_next;
-    dut->jb_taken_i = jb_taken;  // <-- Drive the new port
+    dut->redirect_i = jb_taken;  // redirect wins over stall
     dut->stall_i = stall;
     dut->rst_i = rst;
 

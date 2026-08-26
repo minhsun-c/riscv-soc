@@ -22,8 +22,11 @@ void test_if(Vif_stage *dut,
              const char *label)
 {
     dut->stall_i = stall;
-    dut->jb_taken_i = jb_taken;
-    dut->jb_target_i = jb_target;
+    dut->redirect_i = jb_taken;
+    dut->redirect_pc_i = jb_target;
+    // These vectors predate the predictor; no prediction means pc+4.
+    dut->pred_taken_i = 0;
+    dut->pred_target_i = 0;
 
     // We do NOT tick here yet because we want to check the state
     // resulting from the PREVIOUS cycle's clock edge.
@@ -35,6 +38,29 @@ void test_if(Vif_stage *dut,
               (std::string(label) + " (PC+4 Path)").c_str());
 
     // Tick to move to the next state defined by the inputs above
+    tick(dut);
+}
+
+// Same as test_if but drives the prediction inputs too, for the vectors that
+// exercise the priority between redirect, prediction and pc+4.
+void test_if_pred(Vif_stage *dut,
+                  bool stall,
+                  bool redirect,
+                  uint32_t redirect_pc,
+                  bool pred_taken,
+                  uint32_t pred_target,
+                  uint32_t exp_pc,
+                  const char *label)
+{
+    dut->stall_i = stall;
+    dut->redirect_i = redirect;
+    dut->redirect_pc_i = redirect_pc;
+    dut->pred_taken_i = pred_taken;
+    dut->pred_target_i = pred_target;
+    dut->eval();
+
+    EXPECT_EQ(dut->pc_o, exp_pc, (std::string(label) + " (Current PC)").c_str());
+
     tick(dut);
 }
 
@@ -80,6 +106,33 @@ int main(int argc, char **argv)
     test_if(dut, 0, 0, 0, 0x8, 0xC, "9. Verify Stall Held");
 
     printf("--- Mixed IF Stage Verification Complete ---\n");
+
+    printf("--- Prediction and its priority ---\n");
+
+    // Land somewhere known first.
+    test_if_pred(dut, 0, 1, 0x2000, 0, 0, 0xC, "P1. Redirect to 0x2000");
+
+    // A prediction with nothing competing: the PC follows it.
+    test_if_pred(dut, 0, 0, 0, 1, 0x3000, 0x2000, "P2. At 0x2000, predict 0x3000");
+    test_if_pred(dut, 0, 0, 0, 0, 0, 0x3000, "P3. Prediction was taken");
+
+    // No prediction: plain pc+4.
+    test_if_pred(dut, 0, 0, 0, 0, 0, 0x3004, "P4. pc+4 when not predicted");
+
+    // Both at once. Redirect is fact and prediction is a guess, so redirect
+    // wins -- this is the ordering the whole week turns on.
+    test_if_pred(dut, 0, 1, 0x5000, 1, 0x9000, 0x3008, "P5. Both asserted");
+    test_if_pred(dut, 0, 0, 0, 0, 0, 0x5000, "P6. Redirect beat the prediction");
+
+    // A stall must not be overridden by a prediction: IF is frozen, and the
+    // instruction it already fetched has not moved on yet.
+    test_if_pred(dut, 1, 0, 0, 1, 0x7000, 0x5004, "P7. Stalled, prediction ignored");
+    test_if_pred(dut, 0, 0, 0, 0, 0, 0x5004, "P8. PC held through the stall");
+
+    // But a redirect does override a stall: continuing to fetch down a path
+    // already known to be wrong helps nobody.
+    test_if_pred(dut, 1, 1, 0x8000, 0, 0, 0x5008, "P9. Stalled but redirected");
+    test_if_pred(dut, 0, 0, 0, 0, 0, 0x8000, "P10. Redirect beat the stall");
 
     close_vcd();
     delete dut;

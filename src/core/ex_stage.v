@@ -47,6 +47,11 @@ module ex_stage #(
 
     // Data Inputs (from id_ex)
     input [XLEN-1:0] pc_i,
+    input [XLEN-1:0] pc_plus4_i,
+
+    // What IF guessed for this instruction, carried down by if_id and id_ex
+    input            pred_taken_i,
+    input [XLEN-1:0] pred_target_i,
     input [XLEN-1:0] rs1_data_i,
     input [XLEN-1:0] rs2_data_i,
     input [XLEN-1:0] imm_i,
@@ -61,7 +66,11 @@ module ex_stage #(
     output [XLEN-1:0] rs2_fwd_o,
     output [XLEN-1:0] alu_result_o,
     output [XLEN-1:0] jb_target_o,
-    output            jb_taken_o
+    output            jb_taken_o,
+
+    // Was the guess wrong, and if so where should fetch actually be
+    output            redirect_o,
+    output [XLEN-1:0] redirect_pc_o
 );
   `include "fwdsel.vh"
 
@@ -144,6 +153,24 @@ module ex_stage #(
       .b_i  (pc_i + imm_i),
       .out_o(jb_target_o)
   );
+
+  // --- Checking the guess ---
+  // jb_taken_o / jb_target_o are the truth: this is where the branch was
+  // actually resolved. The prediction is only worth acting on if it agreed
+  // with both halves of that truth.
+  //
+  // Getting "taken" right is not enough on its own -- a btb entry can survive
+  // from a different branch that mapped to the same index and hand back the
+  // wrong target, so the target has to be checked too.
+  wire target_ok = (pred_target_i == jb_target_o);
+
+  assign redirect_o = jb_taken_o ? !(pred_taken_i && target_ok)  // guessed not-taken, or right idea wrong target
+                                 : pred_taken_i;                 // guessed taken, but it was not
+
+  // Where fetch should have gone. Note this is the correct PC either way, not
+  // "the target" -- a branch predicted taken that turns out not to be has to
+  // send fetch back to the instruction after itself.
+  assign redirect_pc_o = jb_taken_o ? jb_target_o : pc_plus4_i;
 
 endmodule
 

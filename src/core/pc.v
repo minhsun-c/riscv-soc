@@ -11,7 +11,7 @@
  *
  * @port clk_i          [Input]  [1:0]      System clock.
  * @port rst_i          [Input]  [1:0]      System reset (initializes to 0x0).
- * @port jb_taken_i     [Input]  [1:0]      Jump/Branch flag; overrides 
+ * @port redirect_i      [Input]  [1:0]      Jump/Branch flag; overrides 
  *                                          stall conditions.
  * @port stall_i        [Input]  [1:0]      Stall signal; freezes PC 
  *                                          unless jumping.
@@ -26,7 +26,9 @@ module pc #(
     input clk_i,
     input rst_i,
 
-    input                 jb_taken_i,
+    // Redirect wins over stall: if EX says the fetch path was wrong, holding
+    // the PC would only keep fetching down the wrong path for another cycle.
+    input                 redirect_i,
     input                 stall_i,
     input      [XLEN-1:0] pc_next_i,
     output reg [XLEN-1:0] pc_o
@@ -35,7 +37,7 @@ module pc #(
   always @(posedge clk_i) begin
     if (rst_i) begin
       pc_o <= {XLEN{1'b0}};
-    end else if (jb_taken_i) begin
+    end else if (redirect_i) begin
       pc_o <= pc_next_i;
     end else if (stall_i) begin
       pc_o <= pc_o;

@@ -10,7 +10,12 @@ RVT_DIR   = $(TEST_DIR)/riscv_tests
 # --- Dynamic Core Test Selection ---
 TESTNUM ?= 1
 
-# Automatically map TESTNUM to the correct C source for software tests
+# Which tests are C programs that have to be compiled first. The rest are
+# hand-written machine code inside the test header, and must not trigger a
+# software build -- there is no .c file for them.
+SW_TESTS = 6 7 8
+IS_SW    = $(filter $(TESTNUM),$(SW_TESTS))
+
 ifeq ($(TESTNUM), 6)
     PROG_NAME = merge_sort
 else ifeq ($(TESTNUM), 7)
@@ -47,7 +52,7 @@ help:
 # Integrated Core Target
 cpu: $(CPU_DEPS) $(TEST_DIR)/tb_cpu.cpp
 # Only trigger the software Makefile for Test 6 and above
-ifeq ($(shell expr $(TESTNUM) \>= 6), 1)
+ifneq ($(IS_SW),)
 	@echo "--- Building Software: $(PROG_NAME) (test$(TESTNUM).bin) ---"
 	@$(MAKE) -C $(SW_DIR) PROG=$(PROG_NAME) TESTNUM=$(TESTNUM)
 endif
@@ -56,7 +61,7 @@ endif
 # Integrated Core Target
 core: $(CORE_DEPS) $(TEST_DIR)/tb_core.cpp
 # Only trigger the software Makefile for Test 6 and above
-ifeq ($(shell expr $(TESTNUM) \>= 6), 1)
+ifneq ($(IS_SW),)
 	@echo "--- Building Software: $(PROG_NAME) (test$(TESTNUM).bin) ---"
 	@$(MAKE) -C $(SW_DIR) PROG=$(PROG_NAME) TESTNUM=$(TESTNUM)
 endif

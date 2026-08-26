@@ -57,6 +57,10 @@ module id_ex #(
     input [     4:0] rs1_addr_i,
     input [     4:0] rs2_addr_i,
 
+    // The guess, still travelling: EX is where it finally gets checked
+    input            pred_taken_i,
+    input [XLEN-1:0] pred_target_i,
+
     // Control Inputs from ID
     input       rd_wen_i,
     input [1:0] rd_src_i,
@@ -80,6 +84,8 @@ module id_ex #(
     output reg [     4:0] rd_addr_ex_o,
     output reg [     4:0] rs1_addr_ex_o,
     output reg [     4:0] rs2_addr_ex_o,
+    output reg            pred_taken_ex_o,
+    output reg [XLEN-1:0] pred_target_ex_o,
 
     // Control Outputs to EX
     output reg       rd_wen_ex_o,
@@ -107,6 +113,8 @@ module id_ex #(
       rd_addr_ex_o   <= 5'b0;
       rs1_addr_ex_o  <= 5'b0;
       rs2_addr_ex_o  <= 5'b0;
+      pred_taken_ex_o  <= 1'b0;
+      pred_target_ex_o <= {XLEN{1'b0}};
 
       rd_wen_ex_o    <= 1'b0;
       rd_src_ex_o    <= 2'b0;
@@ -129,6 +137,8 @@ module id_ex #(
       rd_addr_ex_o   <= rd_addr_i;
       rs1_addr_ex_o  <= rs1_addr_i;
       rs2_addr_ex_o  <= rs2_addr_i;
+      pred_taken_ex_o  <= pred_taken_i;
+      pred_target_ex_o <= pred_target_i;
       rd_wen_ex_o    <= rd_wen_i;
       rd_src_ex_o    <= rd_src_i;
       alu_src_a_ex_o <= alu_src_a_i;

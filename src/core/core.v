@@ -51,8 +51,14 @@ module core #(
   // Exposed so the testbench can count stall cycles: the whole point of the
   // forwarding unit is that this number drops.
   wire stall_all  /* verilator public */;
-  wire flush_jb = ex_jb_taken;  // Flush on Branch/Jump
-  wire flush_id_ex = flush_jb | stall_all;  // inject a bubble into EX
+  // Only a wrong guess costs a flush now. A correctly predicted taken branch
+  // keeps the two instructions IF already fetched, which is the entire point --
+  // flushing on ex_jb_taken would throw them away and undo the prediction.
+  wire flush_jb = ex_redirect;
+  // An instruction enters EX exactly when this is low, which is how the
+  // testbench counts retired instructions without adding a valid bit.
+  wire flush_id_ex  /* verilator public */;
+  assign flush_id_ex = flush_jb | stall_all;  // inject a bubble into EX
 
   hdu u_hdu (
       // From Decode Stage (the consumer)
@@ -91,14 +97,62 @@ module core #(
   // consumer runs the load is in WB.
   wire [XLEN-1:0] mem_fwd_data = (mem_rd_src == PC4_RDSEL) ? mem_pc_plus4 : mem_alu_result;
 
+  // --- Branch Prediction ---
+  // Looked up with the PC being fetched, because that is all IF has.
+  wire            btb_hit;
+  wire [XLEN-1:0] btb_target;
+  wire            bht_taken;
+
+  // A prediction needs both halves: bht says whether, btb says where. Missing
+  // either one leaves IF with nowhere to go, so it falls back to pc+4.
+  wire            pred_taken  /* verilator public */;
+  wire [XLEN-1:0] pred_target  /* verilator public */;
+  assign pred_taken  = btb_hit && bht_taken;
+  assign pred_target = btb_target;
+
+  // EX resolves every control-flow instruction, and that is when both tables
+  // learn. Unconditional jumps train the bht too -- they saturate to strongly
+  // taken after a couple of executions, which is how IF comes to predict them
+  // at all.
+  wire cf_resolved  /* verilator public */;
+  assign cf_resolved = ex_branch || ex_jump;
+
+  btb #(
+      .XLEN(XLEN)
+  ) u_btb (
+      .clk_i       (clk_i),
+      .rst_i       (rst_i),
+      .pc_i        (if_pc),
+      .hit_o       (btb_hit),
+      .target_o    (btb_target),
+      // Only taken branches have a target worth recording.
+      .upd_valid_i (cf_resolved && ex_jb_taken),
+      .upd_pc_i    (ex_pc),
+      .upd_target_i(ex_jb_target)
+  );
+
+  bht #(
+      .XLEN(XLEN)
+  ) u_bht (
+      .clk_i          (clk_i),
+      .rst_i          (rst_i),
+      .pc_i           (if_pc),
+      .predict_taken_o(bht_taken),
+      .upd_valid_i    (cf_resolved),
+      .upd_pc_i       (ex_pc),
+      .upd_taken_i    (ex_jb_taken)
+  );
+
   // --- IF Stage ---
-  wire [XLEN-1:0] if_pc, if_pc_plus4;
+  wire [XLEN-1:0] if_pc  /* verilator public */, if_pc_plus4;
   if_stage u_if_stage (
       .clk_i      (clk_i),
       .rst_i      (rst_i),
       .stall_i    (stall_all),
-      .jb_taken_i (ex_jb_taken),
-      .jb_target_i(ex_jb_target),
+      .redirect_i   (ex_redirect),
+      .redirect_pc_i(ex_redirect_pc),
+      .pred_taken_i (pred_taken),
+      .pred_target_i(pred_target),
       .pc_o       (if_pc),
       .pc_plus4_o (if_pc_plus4)
   );
@@ -114,14 +168,20 @@ module core #(
       .pc_i      (if_pc),
       .inst_i    (im_data_i),
       .pc_plus4_i(if_pc_plus4),
+      .pred_taken_i (pred_taken),
+      .pred_target_i(pred_target),
       .pc_o      (id_pc),
       .inst_o    (id_inst),
+      .pred_taken_o (id_pred_taken),
+      .pred_target_o(id_pred_target),
       .pc_plus4_o(id_pc_plus4)
   );
 
   // --- ID Stage ---
   wire [XLEN-1:0] rf_rs1_data, rf_rs2_data;
   wire [XLEN-1:0] id_rs1_data_o, id_rs2_data_o, id_imm_o;
+  wire            id_pred_taken;
+  wire [XLEN-1:0] id_pred_target;
   wire id_alu_sub;
   wire [4:0] rf_rs1_addr, rf_rs2_addr;
   wire [4:0] id_rd_addr_o;
@@ -167,8 +227,10 @@ module core #(
 
   // --- ID/EX Register ---
   // (Latching all signals for the Execute stage) 
-  wire [XLEN-1:0] ex_pc, ex_pc_plus4, ex_rs1_data, ex_rs2_data, ex_imm;
+  wire [XLEN-1:0] ex_pc  /* verilator public */, ex_pc_plus4, ex_rs1_data, ex_rs2_data, ex_imm;
   wire [4:0] ex_rs1_addr, ex_rs2_addr;
+  wire       ex_pred_taken;
+  wire [XLEN-1:0] ex_pred_target;
   wire ex_alu_sub;
   wire [4:0] ex_rd_addr;
   wire [2:0] ex_alu_op, ex_branch_op, ex_mem_op;
@@ -185,6 +247,8 @@ module core #(
       .rs2_data_i (id_rs2_data_o),
       .rs1_addr_i (rf_rs1_addr),
       .rs2_addr_i (rf_rs2_addr),
+      .pred_taken_i (id_pred_taken),
+      .pred_target_i(id_pred_target),
       .alu_sub_i  (id_alu_sub),
       .imm_i      (id_imm_o),
       .rd_addr_i  (id_rd_addr_o),
@@ -206,6 +270,8 @@ module core #(
       .rs2_data_ex_o (ex_rs2_data),
       .rs1_addr_ex_o (ex_rs1_addr),
       .rs2_addr_ex_o (ex_rs2_addr),
+      .pred_taken_ex_o (ex_pred_taken),
+      .pred_target_ex_o(ex_pred_target),
       .alu_sub_ex_o  (ex_alu_sub),
       .imm_ex_o      (ex_imm),
       .rd_addr_ex_o  (ex_rd_addr),
@@ -223,10 +289,12 @@ module core #(
   );
 
   // --- EX Stage ---
+  wire            ex_redirect  /* verilator public */;
+  wire [XLEN-1:0] ex_redirect_pc  /* verilator public */;
   wire [XLEN-1:0] ex_alu_result;
   wire [XLEN-1:0] ex_rs2_fwd;
-  wire [XLEN-1:0] ex_jb_target;
-  wire            ex_jb_taken;
+  wire [XLEN-1:0] ex_jb_target  /* verilator public */;
+  wire            ex_jb_taken  /* verilator public */;
 
   ex_stage u_ex_stage (
       .alu_op_i    (ex_alu_op),
@@ -238,6 +306,9 @@ module core #(
       .branch_op_i (ex_branch_op),
       .jump_i      (ex_jump),
       .pc_i        (ex_pc),
+      .pc_plus4_i  (ex_pc_plus4),
+      .pred_taken_i (ex_pred_taken),
+      .pred_target_i(ex_pred_target),
       .rs1_data_i  (ex_rs1_data),
       .rs2_data_i  (ex_rs2_data),
       .imm_i       (ex_imm),
@@ -250,7 +321,9 @@ module core #(
       .rs2_fwd_o   (ex_rs2_fwd),
       .alu_result_o(ex_alu_result),
       .jb_target_o (ex_jb_target),
-      .jb_taken_o  (ex_jb_taken)
+      .jb_taken_o  (ex_jb_taken),
+      .redirect_o    (ex_redirect),
+      .redirect_pc_o (ex_redirect_pc)
   );
 
   // --- EX/MEM Register ---

@@ -29,9 +29,13 @@ module if_stage #(
     input rst_i,
     input stall_i,
 
-    // Redirection from EX Stage
-    input            jb_taken_i,
-    input [XLEN-1:0] jb_target_i,
+    // Redirection from EX -- the fetch path taken earlier turned out to be wrong
+    input            redirect_i,
+    input [XLEN-1:0] redirect_pc_i,
+
+    // Prediction for the instruction being fetched this cycle, from btb/bht
+    input            pred_taken_i,
+    input [XLEN-1:0] pred_target_i,
 
     // Outputs to Pipeline
     output [XLEN-1:0] pc_o,
@@ -46,17 +50,19 @@ module if_stage #(
   assign pc_plus4_o = pc_o + 32'd4;
 
   // --- Phase 2: Prepare Next PC ---
-  // We determine what the PC SHOULD be after the next clock edge.
-  //  [sel_i = 0]: Sequential Step (pc_plus4_o)
-  //  [sel_i = 1]: Jump/Branch Target (jb_target_i)
-  mux2 #(
-      .WIDTH(XLEN)
-  ) u_mux2 (
-      .sel_i(jb_taken_i),
-      .a_i  (pc_plus4_o),
-      .b_i  (jb_target_i),
-      .out_o(pc_next)
-  );
+  // Three sources now, and the order between them is the whole point:
+  //
+  //   1. redirect   EX has resolved a branch and the guess was wrong. This is
+  //                 fact, not prediction, so nothing may override it.
+  //   2. prediction btb/bht think this fetch should jump. A guess, but a guess
+  //                 made from history rather than from nothing.
+  //   3. pc + 4     no reason to go anywhere else.
+  //
+  // Written as a priority chain rather than a mux tree because more sources are
+  // coming: week 17 hangs trap entry off the same decision, above redirect.
+  assign pc_next = redirect_i    ? redirect_pc_i :
+                   pred_taken_i  ? pred_target_i :
+                                   pc_plus4_o;
 
   // --- The State Element ---
   // On the posedge of clk_i, this register captures pc_next.
@@ -64,7 +70,7 @@ module if_stage #(
   pc u_pc (
       .clk_i(clk_i),
       .rst_i(rst_i),
-      .jb_taken_i(jb_taken_i),
+      .redirect_i(redirect_i),
       .stall_i(stall_i),
       .pc_next_i(pc_next),
       .pc_o(pc_o)
