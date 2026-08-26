@@ -30,6 +30,8 @@
  *                                        passed to the MEM stage.
  */
 
+/* verilator lint_off UNUSEDPARAM */
+
 module ex_stage #(
     parameter XLEN = 32
 ) (
@@ -38,6 +40,7 @@ module ex_stage #(
     input       alu_src_a_i,
     input       alu_src_b_i,
     input       alu_shift_i,
+    input       alu_sub_i,
     input       branch_i,
     input [2:0] branch_op_i,
     input       jump_i,
@@ -48,31 +51,74 @@ module ex_stage #(
     input [XLEN-1:0] rs2_data_i,
     input [XLEN-1:0] imm_i,
 
+    // Forwarding: selectors from fwd, and the two in-flight values they pick from
+    input [      1:0] fwd_a_i,
+    input [      1:0] fwd_b_i,
+    input [XLEN-1:0] fwd_mem_data_i,
+    input [XLEN-1:0] fwd_wb_data_i,
+
     // Outputs (to ex_mem and PC mux)
+    output [XLEN-1:0] rs2_fwd_o,
     output [XLEN-1:0] alu_result_o,
     output [XLEN-1:0] jb_target_o,
     output            jb_taken_o
 );
+  `include "fwdsel.vh"
+
+  // --- Forwarding Multiplexers ---
+  // rs1_data_i / rs2_data_i are what id_ex latched from the register file. If a
+  // still-in-flight instruction is going to overwrite that register, fwd says so
+  // and the newer value is taken from MEM or WB instead. Written as a case rather
+  // than a mux3 module: this is the operand-selection stage, and the selection
+  // logic belongs here in plain sight.
+  reg [XLEN-1:0] rs1_fwd;
+  always @(*) begin
+    case (fwd_a_i)
+      FWD_MEM: rs1_fwd = fwd_mem_data_i;
+      FWD_WB:  rs1_fwd = fwd_wb_data_i;
+      default: rs1_fwd = rs1_data_i;
+    endcase
+  end
+
+  reg [XLEN-1:0] rs2_fwd;
+  always @(*) begin
+    case (fwd_b_i)
+      FWD_MEM: rs2_fwd = fwd_mem_data_i;
+      FWD_WB:  rs2_fwd = fwd_wb_data_i;
+      default: rs2_fwd = rs2_data_i;
+    endcase
+  end
+
+  // Store data leaves here, after forwarding but before the two's complement.
+  // ex_mem used to take rs2 straight from id_ex, which would store the stale
+  // value for `sw` on a register the previous instruction just computed.
+  assign rs2_fwd_o = rs2_fwd;
+
   // --- Operand A Multiplexer ---
-  // If alu_src_a_i is 1, we use the pc. Otherwise, we use rs1_data_i
+  // If alu_src_a_i is 1, we use the pc. Otherwise, we use the forwarded rs1
   wire [XLEN-1:0] alu_operand_a;
   mux2 #(
       .WIDTH(XLEN)
   ) u_mux2_a (
       .sel_i(alu_src_a_i),
-      .a_i  (rs1_data_i),
+      .a_i  (rs1_fwd),
       .b_i  (pc_i),
       .out_o(alu_operand_a)
   );
 
+  // This ALU has no subtract input: `a - b` is `a + (~b + 1)`. The negation sits
+  // after the forwarding mux because a value arriving from MEM or WB is raw --
+  // it never passed through id_stage, which is where this used to live.
+  wire [XLEN-1:0] rs2_operand = alu_sub_i ? (~rs2_fwd + 1'b1) : rs2_fwd;
+
   // --- Operand B Multiplexer ---
-  // If alu_src_b_i is 1, we use the immediate. Otherwise, we use rs2_data_i
+  // If alu_src_b_i is 1, we use the immediate. Otherwise, we use rs2_operand
   wire [XLEN-1:0] alu_operand_b;
   mux2 #(
       .WIDTH(XLEN)
   ) u_mux2_b (
       .sel_i(alu_src_b_i),
-      .a_i  (rs2_data_i),
+      .a_i  (rs2_operand),
       .b_i  (imm_i),
       .out_o(alu_operand_b)
   );
@@ -104,3 +150,5 @@ module ex_stage #(
   );
 
 endmodule
+
+/* verilator lint_on UNUSEDPARAM */

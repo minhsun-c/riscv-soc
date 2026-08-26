@@ -25,6 +25,8 @@
  * @port data_rdata_i [Input]  [XLEN-1:0] Data read from memory.
  */
 
+/* verilator lint_off UNUSEDPARAM */
+
 module core #(
     parameter XLEN = 32
 ) (
@@ -43,27 +45,51 @@ module core #(
     input  [XLEN-1:0] data_rdata_i
 );
 
+  `include "rdsel.vh"
+
   // --- Pipeline Control Wires ---   
-  wire stall_all;
+  // Exposed so the testbench can count stall cycles: the whole point of the
+  // forwarding unit is that this number drops.
+  wire stall_all  /* verilator public */;
   wire flush_jb = ex_jb_taken;  // Flush on Branch/Jump
   wire flush_id_ex = flush_jb | stall_all;  // inject a bubble into EX
 
   hdu u_hdu (
-      // From Decode Stage (current instruction)
+      // From Decode Stage (the consumer)
       .rs1_id_i(rf_rs1_addr),
       .rs2_id_i(rf_rs2_addr),
 
-      // From Execute Stage (older instruction 1)
+      // From Execute Stage (the producer)
       .rd_ex_i       (ex_rd_addr),
       .reg_write_ex_i(ex_rd_wen),
-
-      // From Memory Stage (older instruction 2)
-      .rd_mem_i       (mem_rd_addr),
-      .reg_write_mem_i(mem_rd_wen),
+      .rd_src_ex_i   (ex_rd_src),
 
       // Output to Pipeline Control
       .stall_o(stall_all)
   );
+
+  // --- Forwarding Unit ---
+  // Compares the source registers of the instruction in EX against the
+  // destinations still in flight in MEM and WB.
+  wire [1:0] fwd_a, fwd_b;
+
+  fwd u_fwd (
+      .rs1_addr_ex_i(ex_rs1_addr),
+      .rs2_addr_ex_i(ex_rs2_addr),
+      .rd_addr_mem_i(mem_rd_addr),
+      .rd_wen_mem_i (mem_rd_wen),
+      .rd_addr_wb_i (wb_rd_addr),
+      .rd_wen_wb_i  (wb_rd_wen),
+      .fwd_a_o      (fwd_a),
+      .fwd_b_o      (fwd_b)
+  );
+
+  // What the instruction in MEM is going to write back. For most instructions
+  // that is the ALU result, but JAL/JALR write pc+4 -- forwarding alu_result
+  // there would hand the next instruction the jump target instead of the return
+  // address. Loads never reach this mux: hdu stalls them, and by the time the
+  // consumer runs the load is in WB.
+  wire [XLEN-1:0] mem_fwd_data = (mem_rd_src == PC4_RDSEL) ? mem_pc_plus4 : mem_alu_result;
 
   // --- IF Stage ---
   wire [XLEN-1:0] if_pc, if_pc_plus4;
@@ -96,6 +122,7 @@ module core #(
   // --- ID Stage ---
   wire [XLEN-1:0] rf_rs1_data, rf_rs2_data;
   wire [XLEN-1:0] id_rs1_data_o, id_rs2_data_o, id_imm_o;
+  wire id_alu_sub;
   wire [4:0] rf_rs1_addr, rf_rs2_addr;
   wire [4:0] id_rd_addr_o;
   wire [2:0] id_alu_op, id_branch_op, id_mem_op;
@@ -108,6 +135,7 @@ module core #(
       .rs2_addr_o (rf_rs2_addr),
       .rs1_data_i (rf_rs1_data),
       .rs2_data_i (rf_rs2_data),
+      .alu_sub_o  (id_alu_sub),
       .rs1_data_o (id_rs1_data_o),
       .rs2_data_o (id_rs2_data_o),
       .imm_o      (id_imm_o),
@@ -140,6 +168,8 @@ module core #(
   // --- ID/EX Register ---
   // (Latching all signals for the Execute stage) 
   wire [XLEN-1:0] ex_pc, ex_pc_plus4, ex_rs1_data, ex_rs2_data, ex_imm;
+  wire [4:0] ex_rs1_addr, ex_rs2_addr;
+  wire ex_alu_sub;
   wire [4:0] ex_rd_addr;
   wire [2:0] ex_alu_op, ex_branch_op, ex_mem_op;
   wire [1:0] ex_rd_src;
@@ -153,6 +183,9 @@ module core #(
       .pc_plus4_i (id_pc_plus4),
       .rs1_data_i (id_rs1_data_o),
       .rs2_data_i (id_rs2_data_o),
+      .rs1_addr_i (rf_rs1_addr),
+      .rs2_addr_i (rf_rs2_addr),
+      .alu_sub_i  (id_alu_sub),
       .imm_i      (id_imm_o),
       .rd_addr_i  (id_rd_addr_o),
       .rd_wen_i   (id_rd_wen),
@@ -171,6 +204,9 @@ module core #(
       .pc_plus4_ex_o (ex_pc_plus4),
       .rs1_data_ex_o (ex_rs1_data),
       .rs2_data_ex_o (ex_rs2_data),
+      .rs1_addr_ex_o (ex_rs1_addr),
+      .rs2_addr_ex_o (ex_rs2_addr),
+      .alu_sub_ex_o  (ex_alu_sub),
       .imm_ex_o      (ex_imm),
       .rd_addr_ex_o  (ex_rd_addr),
       .rd_wen_ex_o   (ex_rd_wen),
@@ -188,6 +224,7 @@ module core #(
 
   // --- EX Stage ---
   wire [XLEN-1:0] ex_alu_result;
+  wire [XLEN-1:0] ex_rs2_fwd;
   wire [XLEN-1:0] ex_jb_target;
   wire            ex_jb_taken;
 
@@ -196,6 +233,7 @@ module core #(
       .alu_src_a_i (ex_alu_src_a),
       .alu_src_b_i (ex_alu_src_b),
       .alu_shift_i (ex_alu_shift),
+      .alu_sub_i   (ex_alu_sub),
       .branch_i    (ex_branch),
       .branch_op_i (ex_branch_op),
       .jump_i      (ex_jump),
@@ -203,6 +241,13 @@ module core #(
       .rs1_data_i  (ex_rs1_data),
       .rs2_data_i  (ex_rs2_data),
       .imm_i       (ex_imm),
+
+      .fwd_a_i       (fwd_a),
+      .fwd_b_i       (fwd_b),
+      .fwd_mem_data_i(mem_fwd_data),
+      .fwd_wb_data_i (wb_final_data),
+
+      .rs2_fwd_o   (ex_rs2_fwd),
       .alu_result_o(ex_alu_result),
       .jb_target_o (ex_jb_target),
       .jb_taken_o  (ex_jb_taken)
@@ -222,7 +267,7 @@ module core #(
       .flush_i     (1'b0),
       .pc_plus4_i  (ex_pc_plus4),
       .alu_result_i(ex_alu_result),
-      .rs2_data_i  (ex_rs2_data),
+      .rs2_data_i  (ex_rs2_fwd),
       .rd_addr_i   (ex_rd_addr),
       .rd_wen_i    (ex_rd_wen),
       .rd_src_i    (ex_rd_src),
@@ -281,3 +326,5 @@ module core #(
 
 
 endmodule
+
+/* verilator lint_on UNUSEDPARAM */

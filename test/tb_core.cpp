@@ -56,6 +56,10 @@ int main(int argc, char **argv)
 
     printf("--- Starting Core Pipeline Simulation (TESTNUM=%d) ---\n", TESTNUM);
 
+    // Forwarding's whole purpose is to remove stalls, so count them.
+    uint64_t stall_cycles = 0;
+    uint64_t total_cycles = 0;
+
     for (int i = 0; i < 8000; i++) {
         uint32_t pc_idx = (dut->im_addr_o & 0xFFF) >> 2;
         dut->im_data_i = imem[pc_idx];
@@ -66,8 +70,15 @@ int main(int argc, char **argv)
         }
         dut->data_rdata_i = dmem[data_idx];
 
+        if (dut->rootp->core->stall_all) stall_cycles++;
+        total_cycles++;
+
         tick(dut);
     }
+
+    printf("--- Pipeline Stalls: %llu / %llu cycles (%.1f%%) ---\n",
+           (unsigned long long) stall_cycles, (unsigned long long) total_cycles,
+           100.0 * (double) stall_cycles / (double) total_cycles);
 
     verify_results(dut->rootp->core);
 

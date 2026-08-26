@@ -59,6 +59,7 @@ module id_stage #(
     input [XLEN-1:0] rs2_data_i,
 
     // Data Signals to EX
+    output       alu_sub_o,
     output [XLEN-1:0] rs1_data_o,
     output [XLEN-1:0] rs2_data_o,
     output [XLEN-1:0] imm_o,
@@ -85,7 +86,6 @@ module id_stage #(
 
   // --- Internal Wire from ImmGen ---
   wire [2:0] ctrl_imm_sel;
-  wire       ctrl_alu_sub;
 
   // --- Raw register fields, before format masking ---
   wire [4:0] dec_rs1;
@@ -121,7 +121,7 @@ module id_stage #(
       .alu_src_b_o(alu_src_b_o),
       .alu_op_o   (alu_op_o),
       .alu_shift_o(alu_shift_o),
-      .alu_sub_o  (ctrl_alu_sub),
+      .alu_sub_o  (alu_sub_o),
 
       // Branch & Jump Signals
       .branch_o(branch_o),
@@ -149,8 +149,12 @@ module id_stage #(
   assign rs1_addr_o = ctrl_rs1_ren ? dec_rs1 : 5'd0;
   assign rs2_addr_o = ctrl_rs2_ren ? dec_rs2 : 5'd0;
 
+  // Both operands leave this stage raw. Subtraction used to negate rs2 here,
+  // but the EX operand can now also come from the forwarding path, and a value
+  // arriving from MEM/WB has never been through this mux. The two's complement
+  // therefore belongs after the forwarding mux, in ex_stage.
   assign rs1_data_o = rs1_data_i;
-  assign rs2_data_o = (ctrl_alu_sub) ? ~rs2_data_i + 1 : rs2_data_i;
+  assign rs2_data_o = rs2_data_i;
 
 endmodule
 

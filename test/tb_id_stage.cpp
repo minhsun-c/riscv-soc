@@ -16,6 +16,9 @@ void test_id(Vid_stage *dut,
              uint32_t rs2_val,
              uint32_t exp_imm,
              uint32_t exp_rs2_out,
+             bool exp_alu_sub,
+             uint8_t exp_rs1_addr,
+             uint8_t exp_rs2_addr,
              bool exp_rd_wen,
              bool exp_src_a,
              bool exp_src_b,
@@ -38,7 +41,13 @@ void test_id(Vid_stage *dut,
 
     // --- Data Path Checks ---
     EXPECT_EQ(dut->imm_o, exp_imm, (msg + " (imm)").c_str());
-    EXPECT_EQ(dut->rs2_data_o, exp_rs2_out, (msg + " (rs2 processed)").c_str());
+    EXPECT_EQ(dut->rs2_data_o, exp_rs2_out,
+              (msg + " (rs2 passthrough)").c_str());
+    EXPECT_EQ((bool) dut->alu_sub_o, exp_alu_sub, (msg + " (alu_sub)").c_str());
+    EXPECT_EQ((uint32_t) dut->rs1_addr_o, (uint32_t) exp_rs1_addr,
+              (msg + " (rs1_addr masked)").c_str());
+    EXPECT_EQ((uint32_t) dut->rs2_addr_o, (uint32_t) exp_rs2_addr,
+              (msg + " (rs2_addr masked)").c_str());
 
     // --- Control Signal Checks ---
     EXPECT_EQ((bool) dut->rd_wen_o, exp_rd_wen, (msg + " (rd_wen)").c_str());
@@ -82,51 +91,51 @@ int main(int argc, char **argv)
     printf("--- Starting Comprehensive 18-Test ID Stage Suite ---\n");
 
     // --- 1-3. R-TYPE ---
-    test_id(dut, 0x002081B3, 10, 20, 0, 20, 1, 0, 0, ADD, 0, NOBR, 0, 0, 0, 0,
-            RD_ALU, "1. ADD (R)");
-    test_id(dut, 0x402081B3, 10, 20, 0, 0xFFFFFFEC, 1, 0, 0, ADD, 0, NOBR, 0, 0,
-            0, 0, RD_ALU, "2. SUB (R)");
-    test_id(dut, 0x0020F1B3, 10, 20, 0, 20, 1, 0, 0, AND, 0, NOBR, 0, 0, 0, 0,
-            RD_ALU, "3. AND (R)");
+    test_id(dut, 0x002081B3, 10, 20, 0, 20, 0, 1, 2, 1, 0, 0, ADD, 0, NOBR, 0,
+            0, 0, 0, RD_ALU, "1. ADD (R)");
+    test_id(dut, 0x402081B3, 10, 20, 0, 20, 1, 1, 2, 1, 0, 0, ADD, 0, NOBR, 0,
+            0, 0, 0, RD_ALU, "2. SUB (R)");
+    test_id(dut, 0x0020F1B3, 10, 20, 0, 20, 0, 1, 2, 1, 0, 0, AND, 0, NOBR, 0,
+            0, 0, 0, RD_ALU, "3. AND (R)");
 
     // --- 4-6. I-TYPE (ALU) ---
-    test_id(dut, 0xFF608093, 10, 20, 0xFFFFFFF6, 20, 1, 0, 1, ADD, 0, NOBR, 0,
-            0, 0, 0, RD_ALU, "4. ADDI");
-    test_id(dut, 0x4050D093, 10, 5, 0x405, 5, 1, 0, 1, SRL, 1, NOBR, 0, 0, 0, 0,
-            RD_ALU, "5. SRAI");
-    test_id(dut, 0x0050D093, 10, 5, 0x005, 5, 1, 0, 1, SRL, 0, NOBR, 0, 0, 0, 0,
-            RD_ALU, "6. SRLI");
+    test_id(dut, 0xFF608093, 10, 20, 0xFFFFFFF6, 20, 0, 1, 0, 1, 0, 1, ADD, 0,
+            NOBR, 0, 0, 0, 0, RD_ALU, "4. ADDI");
+    test_id(dut, 0x4050D093, 10, 5, 0x405, 5, 0, 1, 0, 1, 0, 1, SRL, 1, NOBR, 0,
+            0, 0, 0, RD_ALU, "5. SRAI");
+    test_id(dut, 0x0050D093, 10, 5, 0x005, 5, 0, 1, 0, 1, 0, 1, SRL, 0, NOBR, 0,
+            0, 0, 0, RD_ALU, "6. SRLI");
 
     // --- 7-8. LOAD / STORE ---
     // Note: mem_op for LW/SW is their funct3 (010 = 2)
-    test_id(dut, 0x00452283, 100, 20, 4, 20, 1, 0, 1, ADD, 0, NOBR, 0, 0, 2, 0,
-            RD_MEM, "7. LW");
-    test_id(dut, 0x00552423, 100, 55, 8, 55, 0, 0, 1, ADD, 0, NOBR, 0, 0, 2, 1,
-            RD_NONE, "8. SW");
+    test_id(dut, 0x00452283, 100, 20, 4, 20, 0, 10, 0, 1, 0, 1, ADD, 0, NOBR, 0,
+            0, 2, 0, RD_MEM, "7. LW");
+    test_id(dut, 0x00552423, 100, 55, 8, 55, 0, 10, 5, 0, 0, 1, ADD, 0, NOBR, 0,
+            0, 2, 1, RD_NONE, "8. SW");
 
     // --- 9-14. BRANCHES (With SUB inversion) ---
-    test_id(dut, 0x00208863, 10, 10, 16, 0xFFFFFFF6, 0, 0, 0, ADD, 0, 0, 1, 0,
+    test_id(dut, 0x00208863, 10, 10, 16, 10, 1, 1, 2, 0, 0, 0, ADD, 0, 0, 1, 0,
             0, 0, RD_NONE, "9. BEQ");
-    test_id(dut, 0x00A09463, 10, 20, 8, 0xFFFFFFEC, 0, 0, 0, ADD, 0, 1, 1, 0, 0,
-            0, RD_NONE, "10. BNE");
-    test_id(dut, 0x00A0C063, 10, 20, 0, 20, 0, 0, 0, SLT, 0, 4, 1, 0, 0, 0,
-            RD_NONE, "11. BLT");
-    test_id(dut, 0x00A0D063, 10, 20, 0, 20, 0, 0, 0, SLT, 0, 5, 1, 0, 0, 0,
-            RD_NONE, "12. BGE");
-    test_id(dut, 0x00A0E063, 10, 20, 0, 20, 0, 0, 0, SLTU, 0, 6, 1, 0, 0, 0,
-            RD_NONE, "13. BLTU");
-    test_id(dut, 0x00A0F063, 10, 20, 0, 20, 0, 0, 0, SLTU, 0, 7, 1, 0, 0, 0,
-            RD_NONE, "14. BGEU");
+    test_id(dut, 0x00A09463, 10, 20, 8, 20, 1, 1, 10, 0, 0, 0, ADD, 0, 1, 1, 0,
+            0, 0, RD_NONE, "10. BNE");
+    test_id(dut, 0x00A0C063, 10, 20, 0, 20, 0, 1, 10, 0, 0, 0, SLT, 0, 4, 1, 0,
+            0, 0, RD_NONE, "11. BLT");
+    test_id(dut, 0x00A0D063, 10, 20, 0, 20, 0, 1, 10, 0, 0, 0, SLT, 0, 5, 1, 0,
+            0, 0, RD_NONE, "12. BGE");
+    test_id(dut, 0x00A0E063, 10, 20, 0, 20, 0, 1, 10, 0, 0, 0, SLTU, 0, 6, 1, 0,
+            0, 0, RD_NONE, "13. BLTU");
+    test_id(dut, 0x00A0F063, 10, 20, 0, 20, 0, 1, 10, 0, 0, 0, SLTU, 0, 7, 1, 0,
+            0, 0, RD_NONE, "14. BGEU");
 
     // --- 15-18. JUMPS & UPPER IMM ---
-    test_id(dut, 0x7D0000EF, 0, 0, 2000, 0, 1, 1, 1, ADD, 0, NOBR, 0, 1, 0, 0,
-            RD_PC4, "15. JAL");
-    test_id(dut, 0x00008067, 10, 0, 0, 0, 1, 0, 1, ADD, 0, NOBR, 0, 1, 0, 0,
-            RD_PC4, "16. JALR");
-    test_id(dut, 0x123450B7, 0, 0, 0x12345000, 0, 1, 0, 1, ADD, 0, NOBR, 0, 0,
-            0, 0, RD_ALU, "17. LUI");
-    test_id(dut, 0x12345017, 0, 0, 0x12345000, 0, 1, 1, 1, ADD, 0, NOBR, 0, 0,
-            0, 0, RD_ALU, "18. AUIPC");
+    test_id(dut, 0x000F80EF, 0, 0, 1015808, 0, 0, 0, 0, 1, 1, 1, ADD, 0, NOBR,
+            0, 1, 0, 0, RD_PC4, "15. JAL");
+    test_id(dut, 0x00008067, 10, 0, 0, 0, 0, 1, 0, 1, 0, 1, ADD, 0, NOBR, 0, 1,
+            0, 0, RD_PC4, "16. JALR");
+    test_id(dut, 0x123450B7, 0, 0, 0x12345000, 0, 0, 0, 0, 1, 0, 1, ADD, 0,
+            NOBR, 0, 0, 0, 0, RD_ALU, "17. LUI");
+    test_id(dut, 0x12345017, 0, 0, 0x12345000, 0, 0, 0, 0, 1, 1, 1, ADD, 0,
+            NOBR, 0, 0, 0, 0, RD_ALU, "18. AUIPC");
 
     printf("--- ID Stage Verification Complete ---\n");
     close_vcd();

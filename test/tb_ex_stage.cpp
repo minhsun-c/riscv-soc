@@ -38,6 +38,12 @@ void test_ex(Vex_stage *dut,
     dut->rs1_data_i = rs1;
     dut->rs2_data_i = rs2_proc;
     dut->imm_i = imm;
+    // Old vectors pre-negate rs2 themselves and exercise no forwarding.
+    dut->alu_sub_i = 0;
+    dut->fwd_a_i = 0;
+    dut->fwd_b_i = 0;
+    dut->fwd_mem_data_i = 0xDEADBEEF;
+    dut->fwd_wb_data_i = 0xDEADBEEF;
     dut->eval();
 
     std::string msg = std::string(label);
@@ -50,6 +56,52 @@ void test_ex(Vex_stage *dut,
 
     if (m_trace)
         m_trace->dump(sim_time++);
+}
+
+// Forwarding selectors, mirroring src/include/fwdsel.vh
+static const uint8_t FWD_NONE = 0, FWD_MEM = 1, FWD_WB = 2;
+
+// Drives the operand path directly: raw rs1/rs2 as id_ex would latch them, the
+// two forwarding selectors, and the values MEM and WB are carrying this cycle.
+void test_ex_fwd(Vex_stage *dut,
+                 uint8_t alu_op,
+                 bool src_a,
+                 bool src_b,
+                 bool alu_sub,
+                 uint8_t fwd_a,
+                 uint8_t fwd_b,
+                 uint32_t rs1,
+                 uint32_t rs2,
+                 uint32_t mem_data,
+                 uint32_t wb_data,
+                 uint32_t imm,
+                 uint32_t exp_res,
+                 uint32_t exp_rs2_fwd,
+                 const char *label)
+{
+    dut->alu_op_i = alu_op;
+    dut->alu_src_a_i = src_a;
+    dut->alu_src_b_i = src_b;
+    dut->alu_shift_i = 0;
+    dut->alu_sub_i = alu_sub;
+    dut->branch_i = 0;
+    dut->branch_op_i = 2;  // NOBR_OP
+    dut->jump_i = 0;
+    dut->pc_i = 0x1000;
+    dut->rs1_data_i = rs1;
+    dut->rs2_data_i = rs2;
+    dut->imm_i = imm;
+    dut->fwd_a_i = fwd_a;
+    dut->fwd_b_i = fwd_b;
+    dut->fwd_mem_data_i = mem_data;
+    dut->fwd_wb_data_i = wb_data;
+    dut->eval();
+
+    std::string msg = std::string(label);
+    EXPECT_EQ(dut->alu_result_o, exp_res, (msg + " (Result)").c_str());
+    EXPECT_EQ(dut->rs2_fwd_o, exp_rs2_fwd, (msg + " (rs2_fwd_o)").c_str());
+
+    tick(dut);
 }
 
 int main(int argc, char **argv)
@@ -120,6 +172,49 @@ int main(int argc, char **argv)
             0x000000F6, "20. BNE with Imm Target");
 
     printf("--- All 20 EX Stage Tests Passed ---\n");
+
+    printf("--- Forwarding and Subtraction ---\n");
+
+    // Baseline: no forwarding, so id_ex's values are used as-is.
+    test_ex_fwd(dut, 0, 0, 0, false, FWD_NONE, FWD_NONE, 100, 7, 0xAAAA, 0xBBBB,
+                0, 107, 7, "F1. No forwarding");
+
+    // Subtraction now happens here, not in id_stage: 100 - 7.
+    test_ex_fwd(dut, 0, 0, 0, true, FWD_NONE, FWD_NONE, 100, 7, 0xAAAA, 0xBBBB,
+                0, 93, 7, "F2. alu_sub negates rs2");
+
+    // The store path leaves before the negation, so rs2_fwd_o is still 7 above.
+
+    // Operand A taken from MEM / WB instead of the register file value.
+    test_ex_fwd(dut, 0, 0, 0, false, FWD_MEM, FWD_NONE, 100, 7, 500, 900, 0,
+                507, 7, "F3. rs1 from MEM");
+    test_ex_fwd(dut, 0, 0, 0, false, FWD_WB, FWD_NONE, 100, 7, 500, 900, 0, 907,
+                7, "F4. rs1 from WB");
+
+    // Operand B taken from MEM / WB. rs2_fwd_o must follow, because that is
+    // what a store in the same cycle would write to memory.
+    test_ex_fwd(dut, 0, 0, 0, false, FWD_NONE, FWD_MEM, 100, 7, 500, 900, 0,
+                600, 500, "F5. rs2 from MEM");
+    test_ex_fwd(dut, 0, 0, 0, false, FWD_NONE, FWD_WB, 100, 7, 500, 900, 0,
+                1000, 900, "F6. rs2 from WB");
+
+    // A forwarded rs2 must still get negated when the instruction subtracts --
+    // this is the case that breaks if the two's complement is left in id_stage.
+    test_ex_fwd(dut, 0, 0, 0, true, FWD_NONE, FWD_MEM, 100, 7, 40, 900, 0, 60,
+                40, "F7. Forwarded rs2, then negated");
+
+    // Both operands forwarded, from different stages.
+    test_ex_fwd(dut, 0, 0, 0, false, FWD_MEM, FWD_WB, 100, 7, 500, 900, 0, 1400,
+                900, "F8. rs1 from MEM, rs2 from WB");
+
+    // Forwarding is decided before the operand mux, so selecting pc or imm
+    // wins: AUIPC-style (pc + imm) must ignore both forwarded values.
+    test_ex_fwd(dut, 0, 1, 1, false, FWD_MEM, FWD_MEM, 100, 7, 500, 900, 0x20,
+                0x1020, 500, "F9. pc+imm ignores forwarding");
+
+    // But rs2_fwd_o still reports the forwarded value: the store data path does
+    // not care which operand the ALU ended up using.
+
     close_vcd();
     delete dut;
     TEST_SUMMARY();

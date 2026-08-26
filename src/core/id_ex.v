@@ -53,6 +53,9 @@ module id_ex #(
     input [XLEN-1:0] rs2_data_i,
     input [XLEN-1:0] imm_i,
     input [     4:0] rd_addr_i,
+    // The forwarding unit compares these against rd further down the pipeline.
+    input [     4:0] rs1_addr_i,
+    input [     4:0] rs2_addr_i,
 
     // Control Inputs from ID
     input       rd_wen_i,
@@ -61,6 +64,7 @@ module id_ex #(
     input       alu_src_b_i,
     input [2:0] alu_op_i,
     input       alu_shift_i,
+    input       alu_sub_i,
     input       branch_i,
     input [2:0] branch_op_i,
     input       jump_i,
@@ -74,6 +78,8 @@ module id_ex #(
     output reg [XLEN-1:0] rs2_data_ex_o,
     output reg [XLEN-1:0] imm_ex_o,
     output reg [     4:0] rd_addr_ex_o,
+    output reg [     4:0] rs1_addr_ex_o,
+    output reg [     4:0] rs2_addr_ex_o,
 
     // Control Outputs to EX
     output reg       rd_wen_ex_o,
@@ -82,6 +88,7 @@ module id_ex #(
     output reg       alu_src_b_ex_o,
     output reg [2:0] alu_op_ex_o,
     output reg       alu_shift_ex_o,
+    output reg       alu_sub_ex_o,
     output reg       branch_ex_o,
     output reg [2:0] branch_op_ex_o,
     output reg       jump_ex_o,
@@ -98,6 +105,8 @@ module id_ex #(
       rs2_data_ex_o  <= {XLEN{1'b0}};
       imm_ex_o       <= {XLEN{1'b0}};
       rd_addr_ex_o   <= 5'b0;
+      rs1_addr_ex_o  <= 5'b0;
+      rs2_addr_ex_o  <= 5'b0;
 
       rd_wen_ex_o    <= 1'b0;
       rd_src_ex_o    <= 2'b0;
@@ -105,6 +114,7 @@ module id_ex #(
       alu_src_b_ex_o <= 1'b0;
       alu_op_ex_o    <= 3'b0;
       alu_shift_ex_o <= 1'b0;
+      alu_sub_ex_o   <= 1'b0;
       branch_ex_o    <= 1'b0;
       branch_op_ex_o <= NOBR_OP;
       jump_ex_o      <= 1'b0;
@@ -117,12 +127,15 @@ module id_ex #(
       rs2_data_ex_o  <= rs2_data_i;
       imm_ex_o       <= imm_i;
       rd_addr_ex_o   <= rd_addr_i;
+      rs1_addr_ex_o  <= rs1_addr_i;
+      rs2_addr_ex_o  <= rs2_addr_i;
       rd_wen_ex_o    <= rd_wen_i;
       rd_src_ex_o    <= rd_src_i;
       alu_src_a_ex_o <= alu_src_a_i;
       alu_src_b_ex_o <= alu_src_b_i;
       alu_op_ex_o    <= alu_op_i;
       alu_shift_ex_o <= alu_shift_i;
+      alu_sub_ex_o   <= alu_sub_i;
       branch_ex_o    <= branch_i;
       branch_op_ex_o <= branch_op_i;
       jump_ex_o      <= jump_i;
