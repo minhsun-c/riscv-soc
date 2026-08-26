@@ -106,11 +106,6 @@ module ex_stage #(
       .out_o(alu_operand_a)
   );
 
-  // This ALU has no subtract input: `a - b` is `a + (~b + 1)`. The negation sits
-  // after the forwarding mux because a value arriving from MEM or WB is raw --
-  // it never passed through id_stage, which is where this used to live.
-  wire [XLEN-1:0] rs2_operand = alu_sub_i ? (~rs2_fwd + 1'b1) : rs2_fwd;
-
   // --- Operand B Multiplexer ---
   // If alu_src_b_i is 1, we use the immediate. Otherwise, we use rs2_operand
   wire [XLEN-1:0] alu_operand_b;
@@ -118,7 +113,7 @@ module ex_stage #(
       .WIDTH(XLEN)
   ) u_mux2_b (
       .sel_i(alu_src_b_i),
-      .a_i  (rs2_operand),
+      .a_i  (rs2_fwd),
       .b_i  (imm_i),
       .out_o(alu_operand_b)
   );
@@ -128,6 +123,7 @@ module ex_stage #(
       .b_i         (alu_operand_b),
       .op_i        (alu_op_i),
       .shift_mode_i(alu_shift_i),
+      .sub_i       (alu_sub_i),
       .result_o    (alu_result_o)
   );
 

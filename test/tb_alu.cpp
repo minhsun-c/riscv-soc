@@ -25,6 +25,7 @@ void test_alu_op(Valu *dut,
                  uint32_t b,
                  uint8_t op,
                  uint8_t shift_mode,
+                 uint8_t sub,
                  uint32_t expected,
                  const char *label)
 {
@@ -32,6 +33,7 @@ void test_alu_op(Valu *dut,
     dut->b_i = b;
     dut->op_i = op;
     dut->shift_mode_i = shift_mode;
+    dut->sub_i = sub;
     dut->eval();  // Compute the combinational logic
 
     EXPECT_EQ(dut->result_o, expected, label);
@@ -53,52 +55,61 @@ int main(int argc, char **argv)
     // ============================================================
 
     // ADD: 15 + 10 = 25
-    test_alu_op(dut, 15, 10, ALU_ADD, 0, 25, "ADD: 15 + 10");
+    test_alu_op(dut, 15, 10, ALU_ADD, 0, 0, 25, "ADD: 15 + 10");
 
-    // SUB: 50 - 20 (Simulated as 50 + (~20 + 1))
+    // SUB: the ALU does it now -- no need to pre-negate b
     // In hex: 50 + 0xFFFFFFEC = 30
     uint32_t b_val = 20;
-    test_alu_op(dut, 50, (~b_val + 1), ALU_ADD, 0, 30, "SUB: 50 - 20");
+    test_alu_op(dut, 50, 20, ALU_ADD, 0, 1, 30, "SUB: 50 - 20");
+    test_alu_op(dut, 20, 50, ALU_ADD, 0, 1, (uint32_t) -30,
+                "SUB: 20 - 50 (negative)");
+    test_alu_op(dut, 7, 7, ALU_ADD, 0, 1, 0,
+                "SUB: 7 - 7 = 0 (BEQ relies on this)");
+    test_alu_op(dut, 0, 1, ALU_ADD, 0, 1, 0xFFFFFFFF,
+                "SUB: 0 - 1 wraps around");
+    // sub_i only applies to ADD_OP; every other operation ignores it.
+    test_alu_op(dut, 0xF0, 0x0F, ALU_AND, 0, 1, 0x00, "AND ignores sub_i");
+    test_alu_op(dut, 0xF0, 0x0F, ALU_OR, 0, 1, 0xFF, "OR ignores sub_i");
 
     // ============================================================
     // LOGICAL OPERATIONS
     // ============================================================
 
     // AND: 0x0F0F & 0xFFFF = 0x0F0F
-    test_alu_op(dut, 0x0F0F, 0xFFFF, ALU_AND, 0, 0x0F0F, "AND: Masking");
+    test_alu_op(dut, 0x0F0F, 0xFFFF, ALU_AND, 0, 0, 0x0F0F, "AND: Masking");
 
     // OR: 0xF000 | 0x000F = 0xF00F
-    test_alu_op(dut, 0xF000, 0x000F, ALU_OR, 0, 0xF00F, "OR: Combining");
+    test_alu_op(dut, 0xF000, 0x000F, ALU_OR, 0, 0, 0xF00F, "OR: Combining");
 
     // XOR: 0xAAAA ^ 0x5555 = 0xFFFF
-    test_alu_op(dut, 0xAAAA, 0x5555, ALU_XOR, 0, 0xFFFF, "XOR: Toggle");
+    test_alu_op(dut, 0xAAAA, 0x5555, ALU_XOR, 0, 0, 0xFFFF, "XOR: Toggle");
 
     // ============================================================
     // SHIFT OPERATIONS
     // ============================================================
 
     // SLL: 1 << 4 = 16
-    test_alu_op(dut, 1, 4, ALU_SLL, 0, 16, "SLL: Left shift by 4");
+    test_alu_op(dut, 1, 4, ALU_SLL, 0, 0, 16, "SLL: Left shift by 4");
 
     // SRL: 0x80000000 >> 1 = 0x40000000 (Logical: shifts in a 0)
-    test_alu_op(dut, 0x80000000, 1, ALU_SRL, 0, 0x40000000,
+    test_alu_op(dut, 0x80000000, 1, ALU_SRL, 0, 0, 0x40000000,
                 "SRL: Logical right shift");
 
     // SRA: 0x80000000 >>> 1 = 0xC0000000 (Arithmetic: preserves sign bit)
-    test_alu_op(dut, 0x80000000, 1, ALU_SRL, 1, 0xC0000000,
+    test_alu_op(dut, 0x80000000, 1, ALU_SRL, 1, 0, 0xC0000000,
                 "SRA: Arithmetic right shift");
 
     // --- Oversized Shift Amounts (Only lower 5 bits matter in RV32) ---
 
     // SLL: 1 << 32 -> 32 is 0x20. Lower 5 bits are 0. So 1 << 0 = 1.
-    test_alu_op(dut, 1, 32, ALU_SLL, 0, 1, "SLL: Oversized shift (32)");
+    test_alu_op(dut, 1, 32, ALU_SLL, 0, 0, 1, "SLL: Oversized shift (32)");
 
     // SRL: 0x80000000 >> 33 -> 33 is 0x21. Lower 5 bits are 1. So >> 1.
-    test_alu_op(dut, 0x80000000, 33, ALU_SRL, 0, 0x40000000,
+    test_alu_op(dut, 0x80000000, 33, ALU_SRL, 0, 0, 0x40000000,
                 "SRL: Oversized shift (33)");
 
     // SRA: 0x80000000 >>> 35 -> 35 is 0x23. Lower 5 bits are 3. So >>> 3.
-    test_alu_op(dut, 0x80000000, 35, ALU_SRL, 1, 0xF0000000,
+    test_alu_op(dut, 0x80000000, 35, ALU_SRL, 1, 0, 0xF0000000,
                 "SRA: Oversized shift (35)");
 
     // ============================================================
@@ -106,11 +117,11 @@ int main(int argc, char **argv)
     // ============================================================
 
     // SLT (Signed): -5 < 10 (True = 1)
-    test_alu_op(dut, 0xFFFFFFFB, 10, ALU_SLT, 0, 1, "SLT: -5 < 10 (Signed)");
+    test_alu_op(dut, 0xFFFFFFFB, 10, ALU_SLT, 0, 0, 1, "SLT: -5 < 10 (Signed)");
 
     // SLTU (Unsigned): 0xFFFFFFFB < 10 (False = 0)
     // Unsigned, 0xFFFFFFFB is 4.2 billion, which is NOT < 10
-    test_alu_op(dut, 0xFFFFFFFB, 10, ALU_SLTU, 0, 0,
+    test_alu_op(dut, 0xFFFFFFFB, 10, ALU_SLTU, 0, 0, 0,
                 "SLTU: Big < Small (Unsigned)");
 
     // Clean up

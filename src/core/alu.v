@@ -29,6 +29,7 @@ module alu #(
     input      [XLEN-1 : 0] b_i,
     input      [     2 : 0] op_i,
     input                   shift_mode_i,
+    input                   sub_i,
     output reg [XLEN-1 : 0] result_o
 );
 
@@ -42,7 +43,10 @@ module alu #(
 
   always @(*) begin
     case (op_i)
-      ADD_OP:  result_o = a_i + b_i;
+      // Subtraction is the same adder with b inverted and a carry in, which is
+      // what `a - b` synthesises to. Doing `~b + 1` outside the ALU would cost a
+      // second adder for the increment.
+      ADD_OP:  result_o = sub_i ? (a_i - b_i) : (a_i + b_i);
       SLL_OP:  result_o = a_i << b_i[4:0];
       SLT_OP:  result_o = {31'b0, $signed(a_i) < $signed(b_i)};
       SLTU_OP: result_o = {31'b0, a_i < b_i};
