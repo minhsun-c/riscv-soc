@@ -15,6 +15,10 @@
  * @port rst_i        [Input]  [1:0]      Global reset signal (active high).
  */
 
+// Slave slots 1 and 2 are stubs until week 20, so parts of the flattened
+// slave buses are legitimately unread.
+/* verilator lint_off UNUSEDSIGNAL */
+
 module cpu #(
     parameter XLEN = 32
 ) (
@@ -75,21 +79,96 @@ module cpu #(
   );
 
   // -------------------------------------------------------------------------
-  // Data SRAM
+  // Data path: AXI4-Lite
   // -------------------------------------------------------------------------
-  sram #(
-      .XLEN(XLEN),
-      .NUM_ENTRIES(1024),
-      .LATENCY(1)
-  ) u_dmem (
-      .clk_i   (clk_i),
+  // The core's req/ready/rvalid port goes through an adapter onto a bus, and
+  // the bus decides which device answers. Nothing in the core changed to make
+  // this possible -- week 18's LSU split is what made the request expressible
+  // as address + word + WSTRB in the first place.
+  wire            aw_valid, aw_ready, w_valid, w_ready, b_valid, b_ready;
+  wire            ar_valid, ar_ready, r_valid, r_ready;
+  wire [XLEN-1:0] aw_addr, w_data, ar_addr, r_data;
+  wire [     3:0] w_strb;
+  wire [     1:0] b_resp, r_resp;
+
+  axil_master #(
+      .XLEN(XLEN)
+  ) u_axil_master (
+      .clk_i(clk_i),
+      .rst_i(rst_i),
+
       .req_i   (dm_req),
       .addr_i  (dm_addr),
       .wdata_i (dm_wdata),
       .wstrb_i (dm_wstrb),
       .ready_o (dm_ready),
       .rvalid_o(dm_rvalid),
-      .rdata_o (dm_rdata)
+      .rdata_o (dm_rdata),
+
+      .awvalid_o(aw_valid), .awready_i(aw_ready), .awaddr_o(aw_addr),
+      .wvalid_o (w_valid),  .wready_i (w_ready),  .wdata_o (w_data), .wstrb_o(w_strb),
+      .bvalid_i (b_valid),  .bready_o (b_ready),  .bresp_i (b_resp),
+      .arvalid_o(ar_valid), .arready_i(ar_ready), .araddr_o(ar_addr),
+      .rvalid_i (r_valid),  .rready_o (r_ready),  .rdata_i (r_data), .rresp_i(r_resp)
   );
 
+  // Three slave ports. Only the RAM exists this week; UART and timer arrive in
+  // week 20 and plug into the spare slots without touching anything else.
+  wire [2:0] s_awvalid, s_awready, s_wvalid, s_wready, s_bvalid, s_bready;
+  wire [2:0] s_arvalid, s_arready, s_rvalid, s_rready;
+  wire [XLEN-1:0] s_awaddr, s_wdata, s_araddr;
+  wire [3:0] s_wstrb;
+  wire [XLEN*3-1:0] s_rdata;
+
+  axil_xbar #(
+      .XLEN(XLEN)
+  ) u_xbar (
+      .clk_i(clk_i),
+      .rst_i(rst_i),
+
+      .m_awvalid_i(aw_valid), .m_awready_o(aw_ready), .m_awaddr_i(aw_addr),
+      .m_wvalid_i (w_valid),  .m_wready_o (w_ready),  .m_wdata_i (w_data), .m_wstrb_i(w_strb),
+      .m_bvalid_o (b_valid),  .m_bready_i (b_ready),  .m_bresp_o (b_resp),
+      .m_arvalid_i(ar_valid), .m_arready_o(ar_ready), .m_araddr_i(ar_addr),
+      .m_rvalid_o (r_valid),  .m_rready_i (r_ready),  .m_rdata_o (r_data), .m_rresp_o(r_resp),
+
+      .s_awvalid_o(s_awvalid), .s_awready_i(s_awready), .s_awaddr_o(s_awaddr),
+      .s_wvalid_o (s_wvalid),  .s_wready_i (s_wready),  .s_wdata_o (s_wdata), .s_wstrb_o(s_wstrb),
+      .s_bvalid_i (s_bvalid),  .s_bready_o (s_bready),
+      .s_arvalid_o(s_arvalid), .s_arready_i(s_arready), .s_araddr_o(s_araddr),
+      .s_rvalid_i (s_rvalid),  .s_rready_o (s_rready),  .s_rdata_i (s_rdata)
+  );
+
+  // The xbar reports OKAY on the master side regardless, so these are only
+  // here to avoid an unconnected-pin warning. Week 20's exercise is to route
+  // a real SLVERR into the trap machinery week 17 built.
+  wire [1:0] ram_bresp, ram_rresp;
+
+  axil_sram #(
+      .XLEN(XLEN),
+      .NUM_ENTRIES(1024)
+  ) u_dmem (
+      .clk_i(clk_i),
+      .rst_i(rst_i),
+
+      .awvalid_i(s_awvalid[0]), .awready_o(s_awready[0]), .awaddr_i(s_awaddr),
+      .wvalid_i (s_wvalid[0]),  .wready_o (s_wready[0]),  .wdata_i (s_wdata), .wstrb_i(s_wstrb),
+      .bvalid_o (s_bvalid[0]),  .bready_i (s_bready[0]),  .bresp_o (ram_bresp),
+      .arvalid_i(s_arvalid[0]), .arready_o(s_arready[0]), .araddr_i(s_araddr),
+      .rvalid_o (s_rvalid[0]),  .rready_i (s_rready[0]),  .rdata_o (s_rdata[XLEN-1:0]),
+      .rresp_o  (ram_rresp)
+  );
+
+  // Slots 1 and 2 are empty until week 20. Tying READY high and VALID low
+  // means an access to them completes immediately with zeros rather than
+  // hanging the bus -- the same reasoning as the xbar's unmapped-address path.
+  assign s_awready[2:1] = 2'b11;
+  assign s_wready[2:1]  = 2'b11;
+  assign s_bvalid[2:1]  = 2'b00;
+  assign s_arready[2:1] = 2'b11;
+  assign s_rvalid[2:1]  = 2'b00;
+  assign s_rdata[XLEN*3-1:XLEN] = {(2 * XLEN) {1'b0}};
+
 endmodule
+
+/* verilator lint_on UNUSEDSIGNAL */
