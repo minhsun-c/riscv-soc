@@ -45,6 +45,11 @@ module imm_gen #(
       J_IMM_MODE: begin
         imm_o = {{11{inst_i[31]}}, inst_i[31], inst_i[19:12], inst_i[20], inst_i[30:21], 1'b0};
       end
+      Z_IMM_MODE: begin
+        // The operand hides in the rs1 field. Zero extended: these bits are a
+        // mask, so sign extending them would be meaningless.
+        imm_o = {{(XLEN - 5) {1'b0}}, inst_i[19:15]};
+      end
       default: begin
         imm_o = {XLEN{1'b0}};
       end

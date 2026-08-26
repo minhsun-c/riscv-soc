@@ -22,6 +22,8 @@ void test_wb_stage(Vwb_stage *dut,
     dut->alu_result_i = alu;
     dut->mem_data_i = mem;
     dut->pc_plus4_i = pc_plus4;
+    // A distinctive value, so a mux that picks the wrong source is obvious.
+    dut->csr_rdata_i = 0xC5C5C5C5;
     dut->eval();
 
     std::string msg = std::string(label) + " (WB Selection Check)";
@@ -54,6 +56,16 @@ int main(int argc, char **argv)
 
     // 4. Pick NONE (Expected output is 0)
     test_wb_stage(dut, RD_NONE, 0x1111, 0x2222, 0x3333, 0x0000, "4. Pick NONE");
+
+    // --- CSR source (week 16) ---
+    // rd_src went from 2 bits to 3 because four encodings were already spoken
+    // for. This is the fifth source.
+    test_wb_stage(dut, 4 /* CSR_RDSEL */, 0x1111, 0x2222, 0x3333, 0xC5C5C5C5,
+                  "CSR: rd gets the old CSR value");
+
+    // And the encodings above five read as nothing, not as a latch.
+    test_wb_stage(dut, 6, 0x1111, 0x2222, 0x3333, 0x0,
+                  "Unused encoding still reads 0");
 
     delete dut;
     TEST_SUMMARY();

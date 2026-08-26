@@ -18,7 +18,7 @@
  * @port rd_addr_i      [Input]  [4:0]      Destination register address.
  *
  * @port rd_wen_i       [Input]  [1:0]      Register file write enable.
- * @port rd_src_i       [Input]  [1:0]      Selects the data source for rd.
+ * @port rd_src_i       [Input]  [2:0]      Selects the data source for rd.
  *
  * @port ..._o          [Output] [Various]  Registered versions of the 
  *                                          above inputs.
@@ -39,7 +39,11 @@ module mem_wb #(
 
     // Control Inputs
     input       rd_wen_i,
-    input [1:0] rd_src_i,
+    input [2:0] rd_src_i,
+    input [11:0] csr_addr_i,
+    input  csr_wen_i,
+    input [ 2:0] csr_op_i,
+    input [XLEN-1:0] csr_operand_i,
 
     // Latch Outputs (Next Cycle)
     output reg [XLEN-1:0] pc_plus4_o,
@@ -47,7 +51,11 @@ module mem_wb #(
     output reg [XLEN-1:0] mem_data_o,
     output reg [     4:0] rd_addr_o,
     output reg            rd_wen_o,
-    output reg [     1:0] rd_src_o
+    output reg [     2:0] rd_src_o,
+    output reg [    11:0] csr_addr_o,
+    output reg            csr_wen_o,
+    output reg [     2:0] csr_op_o,
+    output reg [XLEN-1:0] csr_operand_o
 );
 
   always @(posedge clk_i) begin
@@ -55,7 +63,11 @@ module mem_wb #(
       pc_plus4_o   <= {XLEN{1'b0}};
       alu_result_o <= {XLEN{1'b0}};
       mem_data_o   <= {XLEN{1'b0}};
-      rd_src_o     <= 2'b0;
+      rd_src_o     <= 3'b0;
+      csr_addr_o <= 12'b0;
+      csr_wen_o <= 1'b0;
+      csr_op_o <= 3'b0;
+      csr_operand_o <= {XLEN{1'b0}};
       rd_addr_o    <= 5'd0;
       rd_wen_o     <= 1'b0;
     end else if (stall_i) begin
@@ -63,6 +75,10 @@ module mem_wb #(
       alu_result_o <= alu_result_o;
       mem_data_o   <= mem_data_o;
       rd_src_o     <= rd_src_o;
+      csr_addr_o    <= csr_addr_o;
+      csr_wen_o     <= csr_wen_o;
+      csr_op_o      <= csr_op_o;
+      csr_operand_o <= csr_operand_o;
       rd_addr_o    <= rd_addr_o;
       rd_wen_o     <= rd_wen_o;
     end else begin
@@ -70,6 +86,10 @@ module mem_wb #(
       alu_result_o <= alu_result_i;
       mem_data_o   <= mem_data_i;
       rd_src_o     <= rd_src_i;
+      csr_addr_o <= csr_addr_i;
+      csr_wen_o <= csr_wen_i;
+      csr_op_o <= csr_op_i;
+      csr_operand_o <= csr_operand_i;
       rd_addr_o    <= rd_addr_i;
       rd_wen_o     <= rd_wen_i;
     end

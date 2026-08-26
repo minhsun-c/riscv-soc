@@ -180,13 +180,15 @@ module core #(
   // --- ID Stage ---
   wire [XLEN-1:0] rf_rs1_data, rf_rs2_data;
   wire [XLEN-1:0] id_rs1_data_o, id_rs2_data_o, id_imm_o;
+  wire [11:0] id_csr_addr;  wire id_csr_wen;  wire [2:0] id_csr_op;
+  wire [XLEN-1:0] id_csr_operand;
   wire            id_pred_taken;
   wire [XLEN-1:0] id_pred_target;
   wire id_alu_sub;
   wire [4:0] rf_rs1_addr, rf_rs2_addr;
   wire [4:0] id_rd_addr_o;
   wire [2:0] id_alu_op, id_branch_op, id_mem_op;
-  wire [1:0] id_rd_src;
+  wire [2:0] id_rd_src;
   wire id_rd_wen, id_alu_src_a, id_alu_src_b, id_alu_shift, id_branch, id_jump, id_mem_wen;
 
   id_stage u_id_stage (
@@ -196,6 +198,10 @@ module core #(
       .rs1_data_i (rf_rs1_data),
       .rs2_data_i (rf_rs2_data),
       .alu_sub_o  (id_alu_sub),
+      .csr_addr_o (id_csr_addr),
+      .csr_wen_o  (id_csr_wen),
+      .csr_op_o   (id_csr_op),
+      .csr_operand_o(id_csr_operand),
       .rs1_data_o (id_rs1_data_o),
       .rs2_data_o (id_rs2_data_o),
       .imm_o      (id_imm_o),
@@ -229,12 +235,14 @@ module core #(
   // (Latching all signals for the Execute stage) 
   wire [XLEN-1:0] ex_pc  /* verilator public */, ex_pc_plus4, ex_rs1_data, ex_rs2_data, ex_imm;
   wire [4:0] ex_rs1_addr, ex_rs2_addr;
+  wire [11:0] ex_csr_addr;  wire ex_csr_wen;  wire [2:0] ex_csr_op;
+  wire [XLEN-1:0] ex_csr_operand;
   wire       ex_pred_taken;
   wire [XLEN-1:0] ex_pred_target;
   wire ex_alu_sub;
   wire [4:0] ex_rd_addr;
   wire [2:0] ex_alu_op, ex_branch_op, ex_mem_op;
-  wire [1:0] ex_rd_src;
+  wire [2:0] ex_rd_src;
   wire ex_rd_wen, ex_alu_src_a, ex_alu_src_b, ex_alu_shift, ex_branch, ex_jump, ex_mem_wen;
 
   id_ex u_id_ex (
@@ -250,6 +258,10 @@ module core #(
       .pred_taken_i (id_pred_taken),
       .pred_target_i(id_pred_target),
       .alu_sub_i  (id_alu_sub),
+      .csr_addr_i (id_csr_addr),
+      .csr_wen_i  (id_csr_wen),
+      .csr_op_i   (id_csr_op),
+      .csr_operand_i(id_csr_operand),
       .imm_i      (id_imm_o),
       .rd_addr_i  (id_rd_addr_o),
       .rd_wen_i   (id_rd_wen),
@@ -273,6 +285,10 @@ module core #(
       .pred_taken_ex_o (ex_pred_taken),
       .pred_target_ex_o(ex_pred_target),
       .alu_sub_ex_o  (ex_alu_sub),
+      .csr_addr_ex_o (ex_csr_addr),
+      .csr_wen_ex_o  (ex_csr_wen),
+      .csr_op_ex_o   (ex_csr_op),
+      .csr_operand_ex_o(ex_csr_operand),
       .imm_ex_o      (ex_imm),
       .rd_addr_ex_o  (ex_rd_addr),
       .rd_wen_ex_o   (ex_rd_wen),
@@ -330,7 +346,9 @@ module core #(
   wire [XLEN-1:0] mem_pc_plus4, mem_alu_result, mem_rs2_data;
   wire [4:0] mem_rd_addr;
   wire [2:0] mem_mem_op;
-  wire [1:0] mem_rd_src;
+  wire [2:0] mem_rd_src;
+  wire [11:0] mem_csr_addr;  wire mem_csr_wen;  wire [2:0] mem_csr_op;
+  wire [XLEN-1:0] mem_csr_operand;
   wire mem_rd_wen, mem_mem_wen;
 
   ex_mem u_ex_mem (
@@ -344,6 +362,10 @@ module core #(
       .rd_addr_i   (ex_rd_addr),
       .rd_wen_i    (ex_rd_wen),
       .rd_src_i    (ex_rd_src),
+      .csr_addr_i  (ex_csr_addr),
+      .csr_wen_i   (ex_csr_wen),
+      .csr_op_i    (ex_csr_op),
+      .csr_operand_i(ex_csr_operand),
       .mem_op_i    (ex_mem_op),
       .mem_wen_i   (ex_mem_wen),
 
@@ -353,6 +375,10 @@ module core #(
       .rd_addr_o   (mem_rd_addr),
       .rd_wen_o    (mem_rd_wen),
       .rd_src_o    (mem_rd_src),
+      .csr_addr_o  (mem_csr_addr),
+      .csr_wen_o   (mem_csr_wen),
+      .csr_op_o    (mem_csr_op),
+      .csr_operand_o(mem_csr_operand),
       .mem_op_o    (mem_mem_op),
       .mem_wen_o   (mem_mem_wen)
   );
@@ -366,7 +392,9 @@ module core #(
   // --- MEM/WB Register ---
   wire [XLEN-1:0] wb_pc_plus4, wb_alu_result, wb_mem_data;
   wire [4:0] wb_rd_addr;
-  wire [1:0] wb_rd_src;
+  wire [2:0] wb_rd_src;
+  wire [11:0] wb_csr_addr;  wire wb_csr_wen;  wire [2:0] wb_csr_op;
+  wire [XLEN-1:0] wb_csr_operand, wb_csr_rdata;
   wire       wb_rd_wen;
 
   mem_wb u_mem_wb (
@@ -379,18 +407,42 @@ module core #(
       .rd_addr_i   (mem_rd_addr),
       .rd_wen_i    (mem_rd_wen),
       .rd_src_i    (mem_rd_src),
+      .csr_addr_i  (mem_csr_addr),
+      .csr_wen_i   (mem_csr_wen),
+      .csr_op_i    (mem_csr_op),
+      .csr_operand_i(mem_csr_operand),
       .pc_plus4_o  (wb_pc_plus4),
       .alu_result_o(wb_alu_result),
       .mem_data_o  (wb_mem_data),
       .rd_addr_o   (wb_rd_addr),
       .rd_wen_o    (wb_rd_wen),
-      .rd_src_o    (wb_rd_src)
+      .rd_src_o    (wb_rd_src),
+      .csr_addr_o  (wb_csr_addr),
+      .csr_wen_o   (wb_csr_wen),
+      .csr_op_o    (wb_csr_op),
+      .csr_operand_o(wb_csr_operand)
+  );
+
+  // --- CSR File ---
+  // Sits in WB, reading and writing in the same stage, so two back-to-back CSR
+  // instructions on the same address need no forwarding and no stall.
+  csr #(
+      .XLEN(XLEN)
+  ) u_csr (
+      .clk_i    (clk_i),
+      .rst_i    (rst_i),
+      .raddr_i  (wb_csr_addr),
+      .rdata_o  (wb_csr_rdata),
+      .wen_i    (wb_csr_wen),
+      .op_i     (wb_csr_op),
+      .operand_i(wb_csr_operand)
   );
 
   // --- WB Stage ---
   wire [XLEN-1:0] wb_final_data;
   wb_stage u_wb_stage (
       .alu_result_i(wb_alu_result),
+      .csr_rdata_i (wb_csr_rdata),
       .mem_data_i  (wb_mem_data),
       .pc_plus4_i  (wb_pc_plus4),
       .rd_src_i    (wb_rd_src),

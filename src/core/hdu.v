@@ -23,7 +23,7 @@
  * @port rs2_id_i       [Input]  [4:0] rs2 address of the instruction in ID.
  * @port rd_ex_i        [Input]  [4:0] Destination register of the instruction in EX.
  * @port reg_write_ex_i [Input]        1 if the instruction in EX writes a register.
- * @port rd_src_ex_i    [Input]  [1:0] Writeback source of the instruction in EX.
+ * @port rd_src_ex_i    [Input]  [2:0] Writeback source of the instruction in EX.
  *
  * @port stall_o        [Output]       1 to hold IF/ID and inject a bubble into EX.
  */
@@ -38,7 +38,7 @@ module hdu (
     // From Execute Stage (the producer, one instruction ahead)
     input [4:0] rd_ex_i,
     input       reg_write_ex_i,
-    input [1:0] rd_src_ex_i,
+    input [2:0] rd_src_ex_i,
 
     // Output to Pipeline Control
     output reg stall_o

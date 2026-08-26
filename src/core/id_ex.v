@@ -21,7 +21,7 @@
  * @port rd_addr_i      [Input]  [4:0]      Destination register address.
  *
  * @port rd_wen_i       [Input]  [1:0]      Control: Register write enable.
- * @port rd_src_i       [Input]  [1:0]      Control: Selects the data source 
+ * @port rd_src_i       [Input]  [2:0]      Control: Selects the data source 
  *                                          for rd.
  * @port alu_src_a_i    [Input]  [1:0]      Control: ALU operand A source.
  * @port alu_src_b_i    [Input]  [1:0]      Control: ALU operand B source.
@@ -63,12 +63,17 @@ module id_ex #(
 
     // Control Inputs from ID
     input       rd_wen_i,
-    input [1:0] rd_src_i,
+    input [2:0] rd_src_i,
     input       alu_src_a_i,
     input       alu_src_b_i,
     input [2:0] alu_op_i,
     input       alu_shift_i,
     input       alu_sub_i,
+    // Zicsr fields, just passing through to WB where csr lives
+    input [11:0] csr_addr_i,
+    input  csr_wen_i,
+    input [ 2:0] csr_op_i,
+    input [XLEN-1:0] csr_operand_i,
     input       branch_i,
     input [2:0] branch_op_i,
     input       jump_i,
@@ -89,12 +94,16 @@ module id_ex #(
 
     // Control Outputs to EX
     output reg       rd_wen_ex_o,
-    output reg [1:0] rd_src_ex_o,
+    output reg [2:0] rd_src_ex_o,
     output reg       alu_src_a_ex_o,
     output reg       alu_src_b_ex_o,
     output reg [2:0] alu_op_ex_o,
     output reg       alu_shift_ex_o,
     output reg       alu_sub_ex_o,
+    output reg [11:0] csr_addr_ex_o,
+    output reg  csr_wen_ex_o,
+    output reg [ 2:0] csr_op_ex_o,
+    output reg [XLEN-1:0] csr_operand_ex_o,
     output reg       branch_ex_o,
     output reg [2:0] branch_op_ex_o,
     output reg       jump_ex_o,
@@ -117,12 +126,16 @@ module id_ex #(
       pred_target_ex_o <= {XLEN{1'b0}};
 
       rd_wen_ex_o    <= 1'b0;
-      rd_src_ex_o    <= 2'b0;
+      rd_src_ex_o    <= 3'b0;
       alu_src_a_ex_o <= 1'b0;
       alu_src_b_ex_o <= 1'b0;
       alu_op_ex_o    <= 3'b0;
       alu_shift_ex_o <= 1'b0;
       alu_sub_ex_o   <= 1'b0;
+      csr_addr_ex_o <= 12'b0;
+      csr_wen_ex_o <= 1'b0;
+      csr_op_ex_o <= 3'b0;
+      csr_operand_ex_o <= {XLEN{1'b0}};
       branch_ex_o    <= 1'b0;
       branch_op_ex_o <= NOBR_OP;
       jump_ex_o      <= 1'b0;
@@ -146,6 +159,10 @@ module id_ex #(
       alu_op_ex_o    <= alu_op_i;
       alu_shift_ex_o <= alu_shift_i;
       alu_sub_ex_o   <= alu_sub_i;
+      csr_addr_ex_o <= csr_addr_i;
+      csr_wen_ex_o <= csr_wen_i;
+      csr_op_ex_o <= csr_op_i;
+      csr_operand_ex_o <= csr_operand_i;
       branch_ex_o    <= branch_i;
       branch_op_ex_o <= branch_op_i;
       jump_ex_o      <= jump_i;

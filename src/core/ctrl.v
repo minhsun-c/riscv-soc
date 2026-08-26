@@ -13,13 +13,15 @@
  *                                         ADD/SUB and SRL/SRA).
  *
  * @port rd_wen_o      [Output] [1:0]      Register File write enable (1 = write to rd).
- * @port rd_src_o      [Output] [1:0]      Selects the data source for rd 
+ * @port rd_src_o      [Output] [2:0]      Selects the data source for rd 
  *                                         (0:ALU, 1:MEM, 2:PC+4, 3:ELSE).
  * @port imm_sel_o     [Output] [2:0]      Immediate format selector (0:I, 1:S, 2:B, 
  *                                         3:U, 4:J).
  * @port rs1_ren_o     [Output] [1:0]      1 if the rs1 field holds a real register 
  *                                         reference. U/J formats reuse those bits 
  *                                         for the immediate, so they must read x0.
+ * @port csr_wen_o     [Output]            1 if this instruction writes a CSR.
+ * @port csr_op_o      [Output] [2:0]      Which Zicsr operation (see csrop.vh).
  * @port rs2_ren_o     [Output] [1:0]      1 if the rs2 field holds a real register 
  *                                         reference. I/U/J formats must read x0.
  * @port alu_src_a_o   [Output] [1:0]      ALU operand A source (0 = rs1, 1 = pc).
@@ -46,10 +48,14 @@ module ctrl (
 
     // RegFile & ImmGen Signals
     output reg       rd_wen_o,
-    output reg [1:0] rd_src_o,
+    output reg [2:0] rd_src_o,
     output reg [2:0] imm_sel_o,
     output reg       rs1_ren_o,
     output reg       rs2_ren_o,
+
+    // CSR Signals
+    output reg       csr_wen_o,
+    output reg [2:0] csr_op_o,
 
     // ALU Signals
     output reg       alu_src_a_o,
@@ -74,8 +80,14 @@ module ctrl (
   `include "branchop.vh"
   `include "memop.vh"
   `include "rdsel.vh"
+  `include "csrop.vh"
 
   always @(*) begin
+
+    // Two more signals to clear before the case, for the same reason as all
+    // the others: a branch that forgets one of them creates a latch.
+    csr_wen_o   = 1'b0;
+    csr_op_o    = CSR_NONE;
 
     case (opcode_i)
       R_TYPE: begin
@@ -258,6 +270,35 @@ module ctrl (
         mem_wen_o   = 1'b0;
         mem_op_o    = 3'd0;
         rd_src_o    = PC4_RDSEL;
+      end
+
+      SYSTEM: begin
+        // Zicsr. The CSR address is inst[31:20] and id_stage slices it out
+        // directly -- it never goes through imm_gen, because imm_gen produces
+        // the *operand* here, not the address.
+        //
+        // funct3 is the operation code, so csr_op_o is just funct3 passed on.
+        // Bit 2 of it selects the operand source, which is also what decides
+        // whether the rs1 field is a register or a 5-bit immediate.
+        rs1_ren_o   = ~funct3_i[2];  // 0xx forms read rs1, 1xx forms do not
+        rs2_ren_o   = 1'b0;
+        rd_wen_o    = 1'b1;
+        imm_sel_o   = Z_IMM_MODE;
+        alu_src_a_o = 1'b0;
+        alu_src_b_o = 1'b0;
+        alu_op_o    = ADD_OP;
+        alu_shift_o = 1'b0;
+        alu_sub_o   = 1'b0;
+        branch_o    = 1'b0;
+        branch_op_o = NOBR_OP;
+        jump_o      = 1'b0;
+        mem_wen_o   = 1'b0;
+        mem_op_o    = 3'd0;
+        rd_src_o    = CSR_RDSEL;
+
+        // funct3 = 000 is ecall / ebreak / mret, not a CSR access. Week 17.
+        csr_wen_o   = (funct3_i != CSR_PRIV);
+        csr_op_o    = funct3_i;
       end
 
       default: begin

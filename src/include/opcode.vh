@@ -11,6 +11,7 @@ localparam [6:0] U_LUI   = 7'b0110111;
 localparam [6:0] U_AUIPC = 7'b0010111;
 localparam [6:0] J_JAL   = 7'b1101111;
 localparam [6:0] I_JALR  = 7'b1100111;
+localparam [6:0] SYSTEM  = 7'b1110011;
 
 `undef __OPCODE_LOCALPARAM
 `endif // __OPCODE_LOCALPARAM

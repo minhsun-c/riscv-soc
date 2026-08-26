@@ -22,7 +22,7 @@
  * @port rd_addr_i    [Input]  [4:0]      The destination register address.
  *
  * @port rd_wen_i     [Input]  [1:0]      Control: Write to Register File?
- * @port rd_src_i     [Input]  [1:0]      Control: Selects the data source for rd.
+ * @port rd_src_i     [Input]  [2:0]      Control: Selects the data source for rd.
  * @port mem_op_i     [Input]  [2:0]      Control: 3-bit Memory operation selector.
  * @port mem_wen_i    [Input]  [1:0]      Control: Write to Data SRAM?
  *

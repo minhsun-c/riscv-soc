@@ -22,7 +22,7 @@
  * @port rd_addr_i    [Input]  [4:0]      The destination register address.
  *
  * @port rd_wen_i     [Input]  [1:0]      Control: Write to Register File?
- * @port rd_src_i     [Input]  [1:0]      Control: Selects the data source for rd.
+ * @port rd_src_i     [Input]  [2:0]      Control: Selects the data source for rd.
  * @port mem_op_i     [Input]  [2:0]      Control: 3-bit Memory operation selector.
  * @port mem_wen_i    [Input]  [1:0]      Control: Write to Data SRAM?
  *
@@ -46,7 +46,11 @@ module ex_mem #(
 
     // Control Signals (from EX Stage, originally from ID)
     input       rd_wen_i,
-    input [1:0] rd_src_i,
+    input [2:0] rd_src_i,
+    input [11:0] csr_addr_i,
+    input  csr_wen_i,
+    input [ 2:0] csr_op_i,
+    input [XLEN-1:0] csr_operand_i,
     input [2:0] mem_op_i,
     input       mem_wen_i,
 
@@ -58,7 +62,11 @@ module ex_mem #(
 
     // Control Signals to MEM/WB Stages
     output reg       rd_wen_o,
-    output reg [1:0] rd_src_o,
+    output reg [2:0] rd_src_o,
+    output reg [11:0] csr_addr_o,
+    output reg  csr_wen_o,
+    output reg [ 2:0] csr_op_o,
+    output reg [XLEN-1:0] csr_operand_o,
     output reg [2:0] mem_op_o,
     output reg       mem_wen_o
 );
@@ -70,7 +78,11 @@ module ex_mem #(
       rs2_data_o   <= {XLEN{1'b0}};
       rd_addr_o    <= 5'b0;
       rd_wen_o     <= 1'b0;
-      rd_src_o     <= 2'b0;
+      rd_src_o     <= 3'b0;
+      csr_addr_o <= 12'b0;
+      csr_wen_o <= 1'b0;
+      csr_op_o <= 3'b0;
+      csr_operand_o <= {XLEN{1'b0}};
       mem_wen_o    <= 1'b0;
       mem_op_o     <= 3'b0;
     end else if (stall_i) begin
@@ -89,6 +101,10 @@ module ex_mem #(
       rd_addr_o    <= rd_addr_i;
       rd_wen_o     <= rd_wen_i;
       rd_src_o     <= rd_src_i;
+      csr_addr_o <= csr_addr_i;
+      csr_wen_o <= csr_wen_i;
+      csr_op_o <= csr_op_i;
+      csr_operand_o <= csr_operand_i;
       mem_wen_o    <= mem_wen_i;
       mem_op_o     <= mem_op_i;
     end

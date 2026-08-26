@@ -24,7 +24,7 @@
  *                                         B (pre-inverted if SUB).
  * @port imm_o         [Output] [XLEN-1:0] Sign-extended immediate value.
  * @port rd_addr_o     [Output] [4:0]      Destination register address.
- * @port rd_src_o      [Output] [1:0]      Control: Selects the data source 
+ * @port rd_src_o      [Output] [2:0]      Control: Selects the data source 
  *                                         for rd.
  * @port rd_wen_o      [Output] [1:0]      Control: Enable register file 
  *                                         write-back.
@@ -60,6 +60,12 @@ module id_stage #(
 
     // Data Signals to EX
     output       alu_sub_o,
+
+    // CSR access, assembled here because this is where the instruction is
+    output [11:0] csr_addr_o,
+    output        csr_wen_o,
+    output [ 2:0] csr_op_o,
+    output [XLEN-1:0] csr_operand_o,
     output [XLEN-1:0] rs1_data_o,
     output [XLEN-1:0] rs2_data_o,
     output [XLEN-1:0] imm_o,
@@ -67,7 +73,7 @@ module id_stage #(
 
     // Control Signals to EX
     output       rd_wen_o,
-    output [1:0] rd_src_o,
+    output [2:0] rd_src_o,
     output       alu_src_a_o,
     output       alu_src_b_o,
     output [2:0] alu_op_o,
@@ -91,6 +97,8 @@ module id_stage #(
   wire [4:0] dec_rs1;
   wire [4:0] dec_rs2;
   wire       ctrl_rs1_ren;
+  wire       ctrl_csr_wen;
+  wire [2:0] ctrl_csr_op;
   wire       ctrl_rs2_ren;
 
   decoder u_decoder (
@@ -115,6 +123,8 @@ module id_stage #(
       .imm_sel_o(ctrl_imm_sel),
       .rs1_ren_o(ctrl_rs1_ren),
       .rs2_ren_o(ctrl_rs2_ren),
+      .csr_wen_o(ctrl_csr_wen),
+      .csr_op_o (ctrl_csr_op),
 
       // ALU Signals
       .alu_src_a_o(alu_src_a_o),
@@ -155,6 +165,27 @@ module id_stage #(
   // therefore belongs after the forwarding mux, in ex_stage.
   assign rs1_data_o = rs1_data_i;
   assign rs2_data_o = rs2_data_i;
+
+  // --- CSR access ---
+  // The address is a plain slice of the instruction. It deliberately does not
+  // go through imm_gen: imm_gen is busy producing the *operand* for the
+  // immediate forms, and one module cannot hand out two different fields.
+  `include "csrop.vh"
+
+  assign csr_addr_o = inst_i[31:20];
+  assign csr_op_o   = ctrl_csr_op;
+
+  // Bit 2 of funct3 says where the operand comes from: 0xx reads rs1, 1xx uses
+  // the 5-bit zero-extended immediate that imm_gen produced.
+  assign csr_operand_o = ctrl_csr_op[2] ? imm_o : rs1_data_i;
+
+  // A set or clear whose operand is zero changes nothing, and the spec says it
+  // must not write at all -- so that reading a CSR with side effects stays
+  // side-effect free. Nothing here has side effects yet, but the rule is free
+  // to obey and expensive to retrofit.
+  wire csr_is_set_clear = (ctrl_csr_op == CSR_RS) || (ctrl_csr_op == CSR_RC)
+      || (ctrl_csr_op == CSR_RSI) || (ctrl_csr_op == CSR_RCI);
+  assign csr_wen_o = ctrl_csr_wen && !(csr_is_set_clear && (csr_operand_o == {XLEN{1'b0}}));
 
 endmodule
 

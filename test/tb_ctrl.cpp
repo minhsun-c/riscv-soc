@@ -29,6 +29,8 @@ void test_ctrl(Vctrl *dut,
                uint8_t exp_mem_op,
                bool exp_mem_wen,
                uint8_t exp_rd_src,
+               bool exp_csr_wen,
+               uint8_t exp_csr_op,
                const char *label)
 {
     dut->opcode_i = opcode;
@@ -60,6 +62,9 @@ void test_ctrl(Vctrl *dut,
     EXPECT_EQ((bool) dut->mem_wen_o, exp_mem_wen, (msg + " (mem_wen)").c_str());
     EXPECT_EQ((uint32_t) dut->rd_src_o, (uint32_t) exp_rd_src,
               (msg + " (rd_src)").c_str());
+    EXPECT_EQ((bool) dut->csr_wen_o, exp_csr_wen, (msg + " (csr_wen)").c_str());
+    EXPECT_EQ((uint32_t) dut->csr_op_o, (uint32_t) exp_csr_op,
+              (msg + " (csr_op)").c_str());
 
     tick(dut);
 }
@@ -79,57 +84,81 @@ int main(int argc, char **argv)
     const uint8_t NOBR = 2;  // Default func3 for non-branches
 
     // RD_SRC Mappings from your Verilog comments (0:ALU, 1:MEM, 2:PC+4, 3:ELSE)
-    const uint8_t RD_ALU = 0, RD_MEM = 1, RD_PC4 = 2, RD_NONE = 3;
+    const uint8_t RD_ALU = 0, RD_MEM = 1, RD_PC4 = 2, RD_NONE = 3, RD_CSR = 4;
 
-    printf("--- Starting Full 18-Test Control Unit Suite ---\n");
+    printf("--- Starting Full 24-Test Control Unit Suite ---\n");
 
     // --- 1-3. R-TYPE (Reg-Reg) ---
     test_ctrl(dut, R_TYPE, 0x0, 0x00, 1, 7, 1, 1, 0, 0, ADD, 0, 0, NOBR, 0, 0,
-              0, 0, RD_ALU, "1. ADD (R)");
+              0, 0, RD_ALU, 0, 0, "1. ADD (R)");
     test_ctrl(dut, R_TYPE, 0x0, 0x20, 1, 7, 1, 1, 0, 0, ADD, 0, 1, NOBR, 0, 0,
-              0, 0, RD_ALU, "2. SUB (R)");
+              0, 0, RD_ALU, 0, 0, "2. SUB (R)");
     test_ctrl(dut, R_TYPE, 0x7, 0x00, 1, 7, 1, 1, 0, 0, AND, 0, 0, NOBR, 0, 0,
-              0, 0, RD_ALU, "3. AND (R)");
+              0, 0, RD_ALU, 0, 0, "3. AND (R)");
 
     // --- 4-6. I-TYPE (Reg-Imm) ---
     test_ctrl(dut, I_ALU, 0x0, 0x00, 1, 0, 1, 0, 0, 1, ADD, 0, 0, NOBR, 0, 0, 0,
-              0, RD_ALU, "4. ADDI");
+              0, RD_ALU, 0, 0, "4. ADDI");
     test_ctrl(dut, I_ALU, 0x5, 0x20, 1, 0, 1, 0, 0, 1, SRL, 1, 0, NOBR, 0, 0, 0,
-              0, RD_ALU, "5. SRAI");
+              0, RD_ALU, 0, 0, "5. SRAI");
     test_ctrl(dut, I_ALU, 0x5, 0x00, 1, 0, 1, 0, 0, 1, SRL, 0, 0, NOBR, 0, 0, 0,
-              0, RD_ALU, "6. SRLI");
+              0, RD_ALU, 0, 0, "6. SRLI");
 
     // --- 7-8. LOAD / STORE ---
     // Note: mem_op for LW/SW is the funct3 value (0x2 for LW/SW)
     test_ctrl(dut, I_LOAD, 0x2, 0x00, 1, 0, 1, 0, 0, 1, ADD, 0, 0, NOBR, 0, 0,
-              2, 0, RD_MEM, "7. LW");
+              2, 0, RD_MEM, 0, 0, "7. LW");
     test_ctrl(dut, S_TYPE, 0x2, 0x00, 0, 1, 1, 1, 0, 1, ADD, 0, 0, NOBR, 0, 0,
-              2, 1, RD_NONE, "8. SW");
+              2, 1, RD_NONE, 0, 0, "8. SW");
 
     // --- 9-14. BRANCHES ---
     test_ctrl(dut, B_TYPE, 0x0, 0x00, 0, 2, 1, 1, 0, 0, ADD, 0, 1, 0x0, 1, 0, 0,
-              0, RD_NONE, "9. BEQ");
+              0, RD_NONE, 0, 0, "9. BEQ");
     test_ctrl(dut, B_TYPE, 0x1, 0x00, 0, 2, 1, 1, 0, 0, ADD, 0, 1, 0x1, 1, 0, 0,
-              0, RD_NONE, "10. BNE");
+              0, RD_NONE, 0, 0, "10. BNE");
     test_ctrl(dut, B_TYPE, 0x4, 0x00, 0, 2, 1, 1, 0, 0, SLT, 0, 0, 0x4, 1, 0, 0,
-              0, RD_NONE, "11. BLT");
+              0, RD_NONE, 0, 0, "11. BLT");
     test_ctrl(dut, B_TYPE, 0x5, 0x00, 0, 2, 1, 1, 0, 0, SLT, 0, 0, 0x5, 1, 0, 0,
-              0, RD_NONE, "12. BGE");
+              0, RD_NONE, 0, 0, "12. BGE");
     test_ctrl(dut, B_TYPE, 0x6, 0x00, 0, 2, 1, 1, 0, 0, SLTU, 0, 0, 0x6, 1, 0,
-              0, 0, RD_NONE, "13. BLTU");
+              0, 0, RD_NONE, 0, 0, "13. BLTU");
     test_ctrl(dut, B_TYPE, 0x7, 0x00, 0, 2, 1, 1, 0, 0, SLTU, 0, 0, 0x7, 1, 0,
-              0, 0, RD_NONE, "14. BGEU");
+              0, 0, RD_NONE, 0, 0, "14. BGEU");
 
     // --- 15-18. JUMPS / UPPER IMM ---
     // TEST 15 CHANGED: exp_src_b is now 1 (8th argument)
     test_ctrl(dut, J_JAL, 0x0, 0x00, 1, 4, 0, 0, 1, 1, ADD, 0, 0, NOBR, 0, 1, 0,
-              0, RD_PC4, "15. JAL");
+              0, RD_PC4, 0, 0, "15. JAL");
     test_ctrl(dut, I_JALR, 0x0, 0x00, 1, 0, 1, 0, 0, 1, ADD, 0, 0, NOBR, 0, 1,
-              0, 0, RD_PC4, "16. JALR");
+              0, 0, RD_PC4, 0, 0, "16. JALR");
     test_ctrl(dut, U_LUI, 0x0, 0x00, 1, 3, 0, 0, 0, 1, ADD, 0, 0, NOBR, 0, 0, 0,
-              0, RD_ALU, "17. LUI");
+              0, RD_ALU, 0, 0, "17. LUI");
     test_ctrl(dut, U_AUIPC, 0x0, 0x00, 1, 3, 0, 0, 1, 1, ADD, 0, 0, NOBR, 0, 0,
-              0, 0, RD_ALU, "18. AUIPC");
+              0, 0, RD_ALU, 0, 0, "18. AUIPC");
+
+    // --- 19-24. Zicsr ---
+    // funct3 is the operation, and bit 2 of it also says whether the rs1 field
+    // is a register or a 5-bit immediate -- which is why rs1_ren follows it.
+    const uint8_t SYSTEM = 0x73;
+    const uint8_t CSR_RW = 0b001, CSR_RS = 0b010, CSR_RC = 0b011;
+    const uint8_t CSR_RWI = 0b101, CSR_RSI = 0b110, CSR_RCI = 0b111;
+    const uint8_t Z_IMM = 5;
+
+    test_ctrl(dut, SYSTEM, CSR_RW, 0x00, 1, Z_IMM, 1, 0, 0, 0, ADD, 0, 0, NOBR,
+              0, 0, 0, 0, RD_CSR, 1, CSR_RW, "19. CSRRW");
+    test_ctrl(dut, SYSTEM, CSR_RS, 0x00, 1, Z_IMM, 1, 0, 0, 0, ADD, 0, 0, NOBR,
+              0, 0, 0, 0, RD_CSR, 1, CSR_RS, "20. CSRRS");
+    test_ctrl(dut, SYSTEM, CSR_RC, 0x00, 1, Z_IMM, 1, 0, 0, 0, ADD, 0, 0, NOBR,
+              0, 0, 0, 0, RD_CSR, 1, CSR_RC, "21. CSRRC");
+    // The immediate forms must NOT report an rs1 reference: those bits are the
+    // operand, exactly like the U/J-type case from week 8.
+    test_ctrl(dut, SYSTEM, CSR_RWI, 0x00, 1, Z_IMM, 0, 0, 0, 0, ADD, 0, 0, NOBR,
+              0, 0, 0, 0, RD_CSR, 1, CSR_RWI,
+              "22. CSRRWI (rs1 field is an immediate)");
+    test_ctrl(dut, SYSTEM, CSR_RSI, 0x00, 1, Z_IMM, 0, 0, 0, 0, ADD, 0, 0, NOBR,
+              0, 0, 0, 0, RD_CSR, 1, CSR_RSI, "23. CSRRSI");
+    test_ctrl(dut, SYSTEM, CSR_RCI, 0x00, 1, Z_IMM, 0, 0, 0, 0, ADD, 0, 0, NOBR,
+              0, 0, 0, 0, RD_CSR, 1, CSR_RCI, "24. CSRRCI");
 
     close_vcd();
     delete dut;
