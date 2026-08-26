@@ -6,6 +6,7 @@ TARGETS=(
   if_stage id_stage ex_stage wb_stage
   core-1 core-2 core-3 core-4 core-5 core-6 core-7 core-8
   cpu-1 cpu-2 cpu-3 cpu-4 cpu-5 cpu-6 cpu-7 cpu-8
+  riscv-tests
 )
 
 RED='\033[0;31m'
@@ -27,7 +28,10 @@ for target in "${TARGETS[@]}"; do
     echo "Testing: $target"
     
     # Logic to split target name (matches your GH Action 'Set Simulation Variables' step)
-    if [[ "$target" =~ ^(core|cpu)-([0-9]+)$ ]]; then
+    if [[ "$target" == "riscv-tests" ]]; then
+        MODULE="riscv-tests"
+        TESTNUM=""
+    elif [[ "$target" =~ ^(core|cpu)-([0-9]+)$ ]]; then
         MODULE="${BASH_REMATCH[1]}"
         TESTNUM="${BASH_REMATCH[2]}"
     else
@@ -35,7 +39,11 @@ for target in "${TARGETS[@]}"; do
         TESTNUM="1"
     fi
 
-    make "$MODULE" TESTNUM="$TESTNUM" > output.log 2>&1
+    if [ -n "$TESTNUM" ]; then
+        make "$MODULE" TESTNUM="$TESTNUM" > output.log 2>&1
+    else
+        make "$MODULE" > output.log 2>&1
+    fi
     RESULT=$?
 
     if [ $RESULT -ne 0 ] || grep -q "STATUS: FAILED" output.log; then

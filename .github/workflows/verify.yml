@@ -58,3 +58,39 @@ jobs:
             echo "::error::Simulation did not reach completion summary for ${{ matrix.target }}"
             exit 1
           fi
+
+  riscv-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          # Fetches test/riscv_tests/vendor/riscv-tests. Not recursive: that
+          # submodule has its own (unused) `env` submodule we do not need.
+          submodules: true
+
+      - name: Install Verilator & RISC-V Toolchain
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq verilator gcc-riscv64-unknown-elf
+          verilator --version
+          riscv64-unknown-elf-gcc --version
+
+      - name: Run riscv-tests rv32ui suite
+        run: |
+          set -o pipefail
+          make riscv-tests 2>&1 | tee output.log
+
+      - name: Verify Test Summary
+        if: always()
+        run: |
+          if grep -q "STATUS: FAILED" output.log; then
+            echo "::error::riscv-tests failed - check logs for the failing case number"
+            exit 1
+          fi
+
+          if ! grep -q "STATUS: ALL PASSED" output.log; then
+            echo "::error::riscv-tests did not reach completion summary"
+            exit 1
+          fi

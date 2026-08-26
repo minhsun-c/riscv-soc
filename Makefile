@@ -5,6 +5,7 @@ INC_DIR   = src/include
 TEST_DIR  = test
 OBJ_DIR   = obj_dir
 SW_DIR    = $(TEST_DIR)/test_program
+RVT_DIR   = $(TEST_DIR)/riscv_tests
 
 # --- Dynamic Core Test Selection ---
 TESTNUM ?= 1
@@ -35,11 +36,12 @@ EX_DEPS   = $(RTL_DIR)/ex_stage.v  $(RTL_DIR)/alu.v  $(RTL_DIR)/bcu.v     $(RTL_
 WB_DEPS   = $(RTL_DIR)/wb_stage.v  $(RTL_DIR)/mux2.v
 
 # --- Standard Targets ---
-.PHONY: all clean help style sw_build
+.PHONY: all clean help style sw_build riscv-tests
 
 help:
 	@echo "Usage:"
 	@echo "  make core TESTNUM=X  (Run full core simulation)"
+	@echo "  make riscv-tests     (Run the riscv-tests rv32ui suite)"
 	@echo "  make clean           (Clean hardware & software artifacts)"
 
 # Integrated Core Target
@@ -59,6 +61,18 @@ ifeq ($(shell expr $(TESTNUM) \>= 6), 1)
 	@$(MAKE) -C $(SW_DIR) PROG=$(PROG_NAME) TESTNUM=$(TESTNUM)
 endif
 	@$(MAKE) build_sim MODULE=core SRCS="$^"
+
+# --- riscv-tests (rv32ui) ---
+# Builds the vendored test images and a dedicated simulator, then runs every
+# image. See $(RVT_DIR)/README.md for how the bare-metal environment works.
+RVT_SIM = $(OBJ_DIR)_riscv_tests/Vriscv_tests
+
+riscv-tests: $(CORE_DEPS) $(TEST_DIR)/tb_riscv_tests.cpp
+	@$(MAKE) -C $(RVT_DIR) submodule
+	@echo "--- Building riscv-tests images ---"
+	@$(MAKE) -C $(RVT_DIR)
+	@$(MAKE) build_sim_only MODULE=riscv_tests TOP=core SRCS="$^"
+	@$(RVT_DIR)/run_tests.sh $(RVT_SIM) $(RVT_DIR)/build
 
 # Module-specific targets
 if_stage: $(IF_DEPS) $(TEST_DIR)/tb_if_stage.cpp
@@ -89,10 +103,23 @@ build_sim:
 	@echo "--- Running: $(MODULE) ---"
 	./$(OBJ_DIR)_$(MODULE)/V$(MODULE)
 
+# Internal helper to build a simulation without running it. Used by targets
+# whose binary takes arguments and therefore cannot be launched bare.
+build_sim_only:
+	@rm -rf $(OBJ_DIR)_$(MODULE)
+	@echo "--- Building: $(MODULE) ---"
+	@mkdir -p $(OBJ_DIR)_$(MODULE)
+	@$(VERILATOR) $(VFLAGS) \
+		--top-module $(TOP) \
+		$(SRCS) \
+		--Mdir $(OBJ_DIR)_$(MODULE) \
+		-o V$(MODULE)
+
 # --- Master Clean ---
 clean:
 	rm -rf obj_dir* *.vcd
 	@$(MAKE) -C $(SW_DIR) clean
+	@$(MAKE) -C $(RVT_DIR) clean
 	@echo "Hardware and Software artifacts cleaned."
 
 # Check if tools exist
