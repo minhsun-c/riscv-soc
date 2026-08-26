@@ -49,7 +49,19 @@ module csr #(
     // Write port (same stage, on the clock edge)
     input            wen_i,
     input [     2:0] op_i,
-    input [XLEN-1:0] operand_i
+    input [XLEN-1:0] operand_i,
+
+    // --- Hardware trap interface (week 17) ---
+    // These bypass the Zicsr path entirely: a trap writes mepc/mcause/mtval
+    // and shuffles mstatus whether or not the instruction was a CSR access.
+    input            trap_i,
+    input [     3:0] trap_cause_i,
+    input [XLEN-1:0] trap_pc_i,
+    input [XLEN-1:0] trap_tval_i,
+    input            mret_i,
+
+    output [XLEN-1:0] mtvec_o,
+    output [XLEN-1:0] mepc_o
 );
 
   `include "csraddr.vh"
@@ -69,6 +81,10 @@ module csr #(
 
   reg [XLEN-1:0] rdata;
   assign rdata_o = rdata;
+
+  // Where a trap goes, and where mret comes back to.
+  assign mtvec_o = mtvec;
+  assign mepc_o  = mepc;
 
   always @(*) begin
     case (raddr_i)
@@ -109,6 +125,21 @@ module csr #(
       mcause   <= {XLEN{1'b0}};
       mtval    <= {XLEN{1'b0}};
       mip      <= {XLEN{1'b0}};
+    end else if (trap_i) begin
+      // Hardware wins over any Zicsr write in the same cycle: the instruction
+      // that would have done the write is the one being trapped, so its write
+      // must not happen. core also clears wen_i, but the ordering here says so
+      // explicitly rather than relying on that.
+      mepc   <= trap_pc_i;
+      mcause <= {28'b0, trap_cause_i};
+      mtval  <= trap_tval_i;
+      // Interrupts off inside the handler, with the previous state saved so
+      // mret can put it back. This is the whole of mstatus that matters here.
+      mstatus[MSTATUS_MPIE] <= mstatus[MSTATUS_MIE];
+      mstatus[MSTATUS_MIE]  <= 1'b0;
+    end else if (mret_i) begin
+      mstatus[MSTATUS_MIE]  <= mstatus[MSTATUS_MPIE];
+      mstatus[MSTATUS_MPIE] <= 1'b1;
     end else if (wen_i) begin
       case (raddr_i)
         CSR_MSTATUS:  mstatus <= wdata;

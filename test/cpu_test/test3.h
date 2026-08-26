@@ -24,6 +24,11 @@ void load_program()
     // --- Loop End ---
     imem[6] =
         0x00010193;  // 24: addi x3, x2, 0      (x3 = final sum, expected 15)
+
+    // Falling off the end used to run zeros as NOPs. Since week 17 those
+    // are illegal instructions and trap, so every program needs a stop.
+    imem[7] = 0x0000006F;  // jal x0, 0   (spin here)
+
 }
 
 void verify_results(Vcpu_core *dut)

@@ -38,6 +38,11 @@ void load_program()
 
     // PC 36: Logical XOR
     imem[9] = 0x005444b3;  // xor   x9, x8, x5 (x9 = 1 ^ 100 = 101)
+
+    // Falling off the end used to run zeros as NOPs. Since week 17 those
+    // are illegal instructions and trap, so every program needs a stop.
+    imem[10] = 0x0000006F;  // jal x0, 0   (spin here)
+
 }
 
 void verify_results(Vcore_core *dut)

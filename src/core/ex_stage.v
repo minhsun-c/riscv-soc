@@ -63,6 +63,7 @@ module ex_stage #(
     input [XLEN-1:0] fwd_wb_data_i,
 
     // Outputs (to ex_mem and PC mux)
+    output [XLEN-1:0] rs1_fwd_o,
     output [XLEN-1:0] rs2_fwd_o,
     output [XLEN-1:0] alu_result_o,
     output [XLEN-1:0] jb_target_o,
@@ -101,6 +102,11 @@ module ex_stage #(
   // Store data leaves here, after forwarding but before the two's complement.
   // ex_mem used to take rs2 straight from id_ex, which would store the stale
   // value for `sw` on a register the previous instruction just computed.
+  // Anything outside this module that consumes a register value has to take
+  // it from here, not from id_ex. The CSR operand learned that the hard way:
+  // reading rs1_data_i directly in id_stage gave it the stale value whenever
+  // the previous instruction had just computed it.
+  assign rs1_fwd_o = rs1_fwd;
   assign rs2_fwd_o = rs2_fwd;
 
   // --- Operand A Multiplexer ---

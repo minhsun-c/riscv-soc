@@ -11,7 +11,7 @@ VerilatedVcdC *m_trace = nullptr;
 vluint64_t sim_time = 0;
 
 // rd_src encodings, mirroring src/include/rdsel.vh
-static const uint8_t RD_ALU = 0, RD_MEM = 1, RD_PC4 = 2, RD_NONE = 3;
+static const uint8_t RD_ALU = 0, RD_MEM = 1, RD_PC4 = 2, RD_NONE = 3, RD_CSR = 4;
 
 void test_hdu(Vhdu *dut,
               uint8_t rs1_id,
@@ -82,6 +82,12 @@ int main(int argc, char **argv)
 
     // --- 11. Non-writing instruction in EX ---
     test_hdu(dut, 1, 2, 0, true, RD_NONE, false, "11. Branch in EX, no stall");
+
+    // --- 12-13. Zicsr reads are late in the same way loads are (week 16) ---
+    // The CSR file lives in WB, so an instruction in EX reading a CSR has
+    // nothing to forward from MEM. Same hazard, same single stall.
+    test_hdu(dut, 1, 2, 1, true, RD_CSR, true, "12. CSR read feeding the next instruction");
+    test_hdu(dut, 1, 2, 3, true, RD_CSR, false, "13. CSR read, unrelated rd");
 
     close_vcd();
     delete dut;

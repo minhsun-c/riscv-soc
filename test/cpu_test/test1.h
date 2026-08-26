@@ -10,6 +10,11 @@ void load_program()
     imem[1] = 0x01400113;
     // add  x3, x1, x2  (0x002081b3)
     imem[2] = 0x002081b3;
+
+    // Falling off the end used to run zeros as NOPs. Since week 17 those
+    // are illegal instructions and trap, so every program needs a stop.
+    imem[3] = 0x0000006F;  // jal x0, 0   (spin here)
+
 }
 
 

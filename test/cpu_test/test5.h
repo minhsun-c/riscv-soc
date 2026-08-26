@@ -38,12 +38,21 @@ void load_program()
 
     // PC 36: Logical XOR
     imem[9] = 0x005444b3;  // xor   x9, x8, x5 (x9 = 1 ^ 100 = 101)
+
+    // Falling off the end used to run zeros as NOPs. Since week 17 those
+    // are illegal instructions and trap, so every program needs a stop.
+    imem[10] = 0x0000006F;  // jal x0, 0   (spin here)
+
 }
 
 void verify_results(Vcpu_core *dut)
 {
-    uint32_t pc_base =
-        0x00009000;  // Adjust this to match your hardware start address
+    // Derived, not hardcoded. This used to say 0x9000, which only ever worked
+    // because the program ran off its own end, executed zeros as NOPs until the
+    // PC wrapped around the instruction SRAM, and happened to re-enter at an
+    // address whose low bits matched. Week 17 made those zeros trap, which is
+    // what exposed it. auipc x2, 0 sits at PC 4, so x2 - 4 is the real base.
+    uint32_t pc_base = dut->u_regfile->x[2] - 4;
     printf("\n--- Verifying Test 5 Register States ---\n");
 
     EXPECT_EQ(dut->u_regfile->x[1], pc_base + 0x2000, "AUIPC check 1");

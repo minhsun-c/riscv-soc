@@ -46,6 +46,7 @@ module core #(
 );
 
   `include "rdsel.vh"
+  `include "excause.vh"
 
   // --- Pipeline Control Wires ---   
   // Exposed so the testbench can count stall cycles: the whole point of the
@@ -55,10 +56,17 @@ module core #(
   // keeps the two instructions IF already fetched, which is the entire point --
   // flushing on ex_jb_taken would throw them away and undo the prediction.
   wire flush_jb = ex_redirect;
+
+  // A trap or mret in WB squashes every instruction behind it. Declared here
+  // and driven further down, once trap_take exists.
+  wire flush_trap;
+  wire flush_if_id  = flush_jb | flush_trap;
+  wire flush_ex_mem = flush_trap;
+  wire flush_mem_wb = flush_trap;
   // An instruction enters EX exactly when this is low, which is how the
   // testbench counts retired instructions without adding a valid bit.
   wire flush_id_ex  /* verilator public */;
-  assign flush_id_ex = flush_jb | stall_all;  // inject a bubble into EX
+  assign flush_id_ex = flush_jb | stall_all | flush_trap;  // inject a bubble into EX
 
   hdu u_hdu (
       // From Decode Stage (the consumer)
@@ -149,6 +157,8 @@ module core #(
       .clk_i      (clk_i),
       .rst_i      (rst_i),
       .stall_i    (stall_all),
+      .trap_i       (trap_take || mret_take),
+      .trap_pc_i    (trap_take ? wb_mtvec : wb_mepc),
       .redirect_i   (ex_redirect),
       .redirect_pc_i(ex_redirect_pc),
       .pred_taken_i (pred_taken),
@@ -164,7 +174,7 @@ module core #(
       .clk_i     (clk_i),
       .rst_i     (rst_i),
       .stall_i   (stall_all),
-      .flush_i   (flush_jb),
+      .flush_i   (flush_if_id),
       .pc_i      (if_pc),
       .inst_i    (im_data_i),
       .pc_plus4_i(if_pc_plus4),
@@ -180,6 +190,7 @@ module core #(
   // --- ID Stage ---
   wire [XLEN-1:0] rf_rs1_data, rf_rs2_data;
   wire [XLEN-1:0] id_rs1_data_o, id_rs2_data_o, id_imm_o;
+  wire id_exc_valid, id_is_mret;  wire [3:0] id_exc_cause;
   wire [11:0] id_csr_addr;  wire id_csr_wen;  wire [2:0] id_csr_op;
   wire [XLEN-1:0] id_csr_operand;
   wire            id_pred_taken;
@@ -202,6 +213,9 @@ module core #(
       .csr_wen_o  (id_csr_wen),
       .csr_op_o   (id_csr_op),
       .csr_operand_o(id_csr_operand),
+      .exc_valid_o(id_exc_valid),
+      .exc_cause_o(id_exc_cause),
+      .is_mret_o  (id_is_mret),
       .rs1_data_o (id_rs1_data_o),
       .rs2_data_o (id_rs2_data_o),
       .imm_o      (id_imm_o),
@@ -226,7 +240,9 @@ module core #(
       .rs2_addr_i(rf_rs2_addr),
       .rs1_data_o(rf_rs1_data),
       .rs2_data_o(rf_rs2_data),
-      .rd_we_i   (wb_rd_wen),
+      // A trapping instruction retires nothing: its rd write is the first
+      // thing that must not happen.
+      .rd_we_i   (wb_rd_wen && !trap_take),
       .rd_addr_i (wb_rd_addr),
       .rd_data_i (wb_final_data)
   );
@@ -235,6 +251,7 @@ module core #(
   // (Latching all signals for the Execute stage) 
   wire [XLEN-1:0] ex_pc  /* verilator public */, ex_pc_plus4, ex_rs1_data, ex_rs2_data, ex_imm;
   wire [4:0] ex_rs1_addr, ex_rs2_addr;
+  wire ex_exc_valid_r, ex_is_mret;  wire [3:0] ex_exc_cause_r;
   wire [11:0] ex_csr_addr;  wire ex_csr_wen;  wire [2:0] ex_csr_op;
   wire [XLEN-1:0] ex_csr_operand;
   wire       ex_pred_taken;
@@ -262,6 +279,9 @@ module core #(
       .csr_wen_i  (id_csr_wen),
       .csr_op_i   (id_csr_op),
       .csr_operand_i(id_csr_operand),
+      .exc_valid_i(id_exc_valid),
+      .exc_cause_i(id_exc_cause),
+      .is_mret_i  (id_is_mret),
       .imm_i      (id_imm_o),
       .rd_addr_i  (id_rd_addr_o),
       .rd_wen_i   (id_rd_wen),
@@ -289,6 +309,9 @@ module core #(
       .csr_wen_ex_o  (ex_csr_wen),
       .csr_op_ex_o   (ex_csr_op),
       .csr_operand_ex_o(ex_csr_operand),
+      .exc_valid_ex_o(ex_exc_valid_r),
+      .exc_cause_ex_o(ex_exc_cause_r),
+      .is_mret_ex_o  (ex_is_mret),
       .imm_ex_o      (ex_imm),
       .rd_addr_ex_o  (ex_rd_addr),
       .rd_wen_ex_o   (ex_rd_wen),
@@ -308,6 +331,7 @@ module core #(
   wire            ex_redirect  /* verilator public */;
   wire [XLEN-1:0] ex_redirect_pc  /* verilator public */;
   wire [XLEN-1:0] ex_alu_result;
+  wire [XLEN-1:0] ex_rs1_fwd;
   wire [XLEN-1:0] ex_rs2_fwd;
   wire [XLEN-1:0] ex_jb_target  /* verilator public */;
   wire            ex_jb_taken  /* verilator public */;
@@ -334,6 +358,7 @@ module core #(
       .fwd_mem_data_i(mem_fwd_data),
       .fwd_wb_data_i (wb_final_data),
 
+      .rs1_fwd_o   (ex_rs1_fwd),
       .rs2_fwd_o   (ex_rs2_fwd),
       .alu_result_o(ex_alu_result),
       .jb_target_o (ex_jb_target),
@@ -342,11 +367,32 @@ module core #(
       .redirect_pc_o (ex_redirect_pc)
   );
 
+  // --- Misaligned data address (detected in EX, where the address exists) ---
+  // mem_op[1:0] is the access width: 00 byte, 01 half, 10 word. A byte access
+  // can never be misaligned, which is why there is no case for it.
+  wire ex_is_mem = (ex_rd_src == MEM_RDSEL) || ex_mem_wen;
+  wire ex_misaligned = ex_is_mem
+      && (((ex_mem_op[1:0] == 2'b10) && (ex_alu_result[1:0] != 2'b00))
+       || ((ex_mem_op[1:0] == 2'b01) && (ex_alu_result[0] != 1'b0)));
+
+  // An exception raised earlier wins: the instruction never got far enough to
+  // compute an address, so reporting a misaligned one would be a lie.
+  wire       ex_exc_valid = ex_exc_valid_r || ex_misaligned;
+  wire [3:0] ex_exc_cause = ex_exc_valid_r ? ex_exc_cause_r
+                          : ex_mem_wen     ? EXC_STORE_MISALIGNED
+                                           : EXC_LOAD_MISALIGNED;
+
+  // The CSR operand is picked here, not in ID, because rs1 has to come through
+  // the forwarding mux. id_ex carries the immediate half; this picks between it
+  // and the forwarded register value.
+  wire [XLEN-1:0] ex_csr_operand_sel = ex_csr_op[2] ? ex_csr_operand : ex_rs1_fwd;
+
   // --- EX/MEM Register ---
   wire [XLEN-1:0] mem_pc_plus4, mem_alu_result, mem_rs2_data;
   wire [4:0] mem_rd_addr;
   wire [2:0] mem_mem_op;
   wire [2:0] mem_rd_src;
+  wire mem_exc_valid, mem_is_mret;  wire [3:0] mem_exc_cause;
   wire [11:0] mem_csr_addr;  wire mem_csr_wen;  wire [2:0] mem_csr_op;
   wire [XLEN-1:0] mem_csr_operand;
   wire mem_rd_wen, mem_mem_wen;
@@ -355,7 +401,7 @@ module core #(
       .clk_i       (clk_i),
       .rst_i       (rst_i),
       .stall_i     (1'b0),
-      .flush_i     (1'b0),
+      .flush_i     (flush_ex_mem),
       .pc_plus4_i  (ex_pc_plus4),
       .alu_result_i(ex_alu_result),
       .rs2_data_i  (ex_rs2_fwd),
@@ -365,7 +411,10 @@ module core #(
       .csr_addr_i  (ex_csr_addr),
       .csr_wen_i   (ex_csr_wen),
       .csr_op_i    (ex_csr_op),
-      .csr_operand_i(ex_csr_operand),
+      .csr_operand_i(ex_csr_operand_sel),
+      .exc_valid_i(ex_exc_valid),
+      .exc_cause_i(ex_exc_cause),
+      .is_mret_i  (ex_is_mret),
       .mem_op_i    (ex_mem_op),
       .mem_wen_i   (ex_mem_wen),
 
@@ -379,6 +428,9 @@ module core #(
       .csr_wen_o   (mem_csr_wen),
       .csr_op_o    (mem_csr_op),
       .csr_operand_o(mem_csr_operand),
+      .exc_valid_o(mem_exc_valid),
+      .exc_cause_o(mem_exc_cause),
+      .is_mret_o  (mem_is_mret),
       .mem_op_o    (mem_mem_op),
       .mem_wen_o   (mem_mem_wen)
   );
@@ -393,6 +445,10 @@ module core #(
   wire [XLEN-1:0] wb_pc_plus4, wb_alu_result, wb_mem_data;
   wire [4:0] wb_rd_addr;
   wire [2:0] wb_rd_src;
+  wire wb_exc_valid  /* verilator public */;
+  wire wb_is_mret  /* verilator public */;
+  wire [3:0] wb_exc_cause  /* verilator public */;
+  wire [XLEN-1:0] wb_mtvec  /* verilator public */, wb_mepc  /* verilator public */;
   wire [11:0] wb_csr_addr;  wire wb_csr_wen;  wire [2:0] wb_csr_op;
   wire [XLEN-1:0] wb_csr_operand, wb_csr_rdata;
   wire       wb_rd_wen;
@@ -401,6 +457,7 @@ module core #(
       .clk_i       (clk_i),
       .rst_i       (rst_i),
       .stall_i     (1'b0),
+      .flush_i     (flush_mem_wb),
       .pc_plus4_i  (mem_pc_plus4),
       .alu_result_i(mem_alu_result),
       .mem_data_i  (data_rdata_i),
@@ -411,6 +468,9 @@ module core #(
       .csr_wen_i   (mem_csr_wen),
       .csr_op_i    (mem_csr_op),
       .csr_operand_i(mem_csr_operand),
+      .exc_valid_i(mem_exc_valid),
+      .exc_cause_i(mem_exc_cause),
+      .is_mret_i  (mem_is_mret),
       .pc_plus4_o  (wb_pc_plus4),
       .alu_result_o(wb_alu_result),
       .mem_data_o  (wb_mem_data),
@@ -420,7 +480,10 @@ module core #(
       .csr_addr_o  (wb_csr_addr),
       .csr_wen_o   (wb_csr_wen),
       .csr_op_o    (wb_csr_op),
-      .csr_operand_o(wb_csr_operand)
+      .csr_operand_o(wb_csr_operand),
+      .exc_valid_o(wb_exc_valid),
+      .exc_cause_o(wb_exc_cause),
+      .is_mret_o  (wb_is_mret)
   );
 
   // --- CSR File ---
@@ -433,10 +496,43 @@ module core #(
       .rst_i    (rst_i),
       .raddr_i  (wb_csr_addr),
       .rdata_o  (wb_csr_rdata),
-      .wen_i    (wb_csr_wen),
+      .wen_i    (wb_csr_wen && !trap_take),
       .op_i     (wb_csr_op),
-      .operand_i(wb_csr_operand)
+      // A trapping instruction must not also perform its CSR write.
+      .operand_i(wb_csr_operand),
+
+      .trap_i      (trap_take),
+      .trap_cause_i(wb_exc_cause),
+      .trap_pc_i   (trap_pc),
+      .trap_tval_i (trap_tval),
+      .mret_i      (mret_take),
+      .mtvec_o     (wb_mtvec),
+      .mepc_o      (wb_mepc)
   );
+
+  // --- Trap commit ---
+  // Taken in WB, the same stage the CSR file lives in, so mepc and mcause are
+  // written by the same edge that would have retired the instruction.
+  //
+  // Precise means: everything before this instruction has already committed,
+  // and everything after it is squashed. Since WB is the last stage, "before"
+  // needs no work -- those instructions are gone. "After" is the four flushes
+  // below.
+  wire trap_take  /* verilator public */;
+  assign trap_take = wb_exc_valid;
+  assign flush_trap = trap_take || mret_take;
+  wire mret_take  /* verilator public */;
+  assign mret_take = wb_is_mret && !wb_exc_valid;
+
+  // mtval carries the address for a misaligned access and nothing otherwise.
+  // The spec allows 0 when the implementation has nothing useful to say.
+  wire misaligned_cause = (wb_exc_cause == EXC_LOAD_MISALIGNED)
+      || (wb_exc_cause == EXC_STORE_MISALIGNED);
+  wire [XLEN-1:0] trap_tval = misaligned_cause ? wb_alu_result : {XLEN{1'b0}};
+
+  // pc_plus4 - 4 is the instruction's own PC. Carrying pc through two more
+  // pipeline registers to say the same thing would cost 64 flops.
+  wire [XLEN-1:0] trap_pc = wb_pc_plus4 - 32'd4;
 
   // --- WB Stage ---
   wire [XLEN-1:0] wb_final_data;

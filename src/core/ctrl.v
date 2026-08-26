@@ -57,6 +57,10 @@ module ctrl (
     output reg       csr_wen_o,
     output reg [2:0] csr_op_o,
 
+    // 1 if this opcode is not one this core implements. id_stage refines it
+    // for SYSTEM, where the immediate decides whether it is legal.
+    output reg       illegal_o,
+
     // ALU Signals
     output reg       alu_src_a_o,
     output reg       alu_src_b_o,
@@ -88,6 +92,7 @@ module ctrl (
     // the others: a branch that forgets one of them creates a latch.
     csr_wen_o   = 1'b0;
     csr_op_o    = CSR_NONE;
+    illegal_o   = 1'b0;
 
     case (opcode_i)
       R_TYPE: begin
@@ -302,6 +307,9 @@ module ctrl (
       end
 
       default: begin
+        // Not an opcode this core knows. Everything is left doing nothing,
+        // and illegal_o tells WB to trap instead of retiring it.
+        illegal_o   = 1'b1;
         rs1_ren_o   = 1'b0;
         rs2_ren_o   = 1'b0;
         rd_wen_o    = 1'b0;

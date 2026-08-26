@@ -66,6 +66,11 @@ module id_stage #(
     output        csr_wen_o,
     output [ 2:0] csr_op_o,
     output [XLEN-1:0] csr_operand_o,
+
+    // Exceptions detected here: everything that only needs the instruction
+    output       exc_valid_o,
+    output [3:0] exc_cause_o,
+    output       is_mret_o,
     output [XLEN-1:0] rs1_data_o,
     output [XLEN-1:0] rs2_data_o,
     output [XLEN-1:0] imm_o,
@@ -98,6 +103,7 @@ module id_stage #(
   wire [4:0] dec_rs2;
   wire       ctrl_rs1_ren;
   wire       ctrl_csr_wen;
+  wire       ctrl_illegal;
   wire [2:0] ctrl_csr_op;
   wire       ctrl_rs2_ren;
 
@@ -125,6 +131,7 @@ module id_stage #(
       .rs2_ren_o(ctrl_rs2_ren),
       .csr_wen_o(ctrl_csr_wen),
       .csr_op_o (ctrl_csr_op),
+      .illegal_o(ctrl_illegal),
 
       // ALU Signals
       .alu_src_a_o(alu_src_a_o),
@@ -175,9 +182,10 @@ module id_stage #(
   assign csr_addr_o = inst_i[31:20];
   assign csr_op_o   = ctrl_csr_op;
 
-  // Bit 2 of funct3 says where the operand comes from: 0xx reads rs1, 1xx uses
-  // the 5-bit zero-extended immediate that imm_gen produced.
-  assign csr_operand_o = ctrl_csr_op[2] ? imm_o : rs1_data_i;
+  // Only the immediate half of the operand can be decided here. The rs1 half
+  // has to wait for EX, because that is where forwarding happens -- see
+  // core.v. What leaves this stage is the immediate, and core picks.
+  assign csr_operand_o = imm_o;
 
   // A set or clear whose operand is zero changes nothing, and the spec says it
   // must not write at all -- so that reading a CSR with side effects stays
@@ -186,6 +194,30 @@ module id_stage #(
   wire csr_is_set_clear = (ctrl_csr_op == CSR_RS) || (ctrl_csr_op == CSR_RC)
       || (ctrl_csr_op == CSR_RSI) || (ctrl_csr_op == CSR_RCI);
   assign csr_wen_o = ctrl_csr_wen && !(csr_is_set_clear && (csr_operand_o == {XLEN{1'b0}}));
+
+  // --- Exceptions visible from the instruction alone ---
+  `include "excause.vh"
+  `include "opcode.vh"
+
+  // SYSTEM with funct3 = 000 is not a CSR access. Which privileged instruction
+  // it is comes from the immediate field, and anything else there is illegal.
+  wire is_system = (dec_opcode == SYSTEM);
+  wire is_priv   = is_system && (ctrl_csr_op == CSR_PRIV);
+  wire [11:0] priv_imm = inst_i[31:20];
+
+  assign is_mret_o = is_priv && (priv_imm == PRIV_MRET);
+  wire is_ecall    = is_priv && (priv_imm == PRIV_ECALL);
+  wire is_ebreak   = is_priv && (priv_imm == PRIV_EBREAK);
+
+  // An unrecognised opcode, or a SYSTEM instruction whose immediate names
+  // nothing. ctrl cannot decide the second case because it never sees the
+  // immediate -- it only gets opcode, funct3 and funct7.
+  wire illegal = ctrl_illegal || (is_priv && !is_mret_o && !is_ecall && !is_ebreak);
+
+  assign exc_valid_o = illegal || is_ecall || is_ebreak;
+  assign exc_cause_o = illegal  ? EXC_ILLEGAL_INST :
+                       is_ecall ? EXC_ECALL_M :
+                                  EXC_BREAKPOINT;
 
 endmodule
 

@@ -18,6 +18,11 @@ void load_program()
     imem[6] = 0x00518463;  // 24: beq  x3, x5, 8    (Jump to PC 32)
     imem[7] = 0x06300313;  // 28: addi x6, x0, 99   (SKIPPED)
     imem[8] = 0x06400313;  // 32: addi x6, x0, 100  (x6 = 100)
+
+    // Falling off the end used to run zeros as NOPs. Since week 17 those
+    // are illegal instructions and trap, so every program needs a stop.
+    imem[9] = 0x0000006F;  // jal x0, 0   (spin here)
+
 }
 
 void verify_results(Vcore_core *dut)

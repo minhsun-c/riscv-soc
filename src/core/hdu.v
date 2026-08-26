@@ -16,8 +16,9 @@
  * and there is nothing to forward yet. One stall cycle pushes the consumer back
  * far enough that the load has reached WB, where FWD_WB picks it up.
  *
- * "Is the instruction in EX a load" is exactly rd_src_ex_i == MEM_RDSEL: that is
- * the encoding meaning "the value written to rd comes from memory".
+ * Week 16 added a second source with the same problem: a Zicsr read produces
+ * its value in WB, so there is nothing at MEM to forward. rd_src says so, and
+ * the same stall covers it.
  *
  * @port rs1_id_i       [Input]  [4:0] rs1 address of the instruction in ID.
  * @port rs2_id_i       [Input]  [4:0] rs2 address of the instruction in ID.
@@ -46,9 +47,18 @@ module hdu (
 
   `include "rdsel.vh"
 
-  // A load whose result the very next instruction reads. x0 is excluded for the
-  // usual reason: a write to it is discarded, so there is no dependency.
-  wire load_in_ex = reg_write_ex_i && (rd_src_ex_i == MEM_RDSEL) && (rd_ex_i != 5'd0);
+  // Two writeback sources produce their value too late for the next
+  // instruction to forward from MEM:
+  //
+  //   MEM_RDSEL  a load -- data arrives at the end of MEM
+  //   CSR_RDSEL  a Zicsr read -- the CSR file lives in WB, so nothing exists
+  //              at MEM to forward at all
+  //
+  // Both are the same hazard wearing different clothes, and both are fixed by
+  // the same single stall: it pushes the consumer back far enough that the
+  // producer has reached WB, where FWD_WB picks the value up.
+  wire late_value = (rd_src_ex_i == MEM_RDSEL) || (rd_src_ex_i == CSR_RDSEL);
+  wire load_in_ex = reg_write_ex_i && late_value && (rd_ex_i != 5'd0);
 
   always @(*) begin
     if (load_in_ex && ((rs1_id_i == rd_ex_i) || (rs2_id_i == rd_ex_i))) begin

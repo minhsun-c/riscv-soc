@@ -69,6 +69,9 @@ module id_ex #(
     input [2:0] alu_op_i,
     input       alu_shift_i,
     input       alu_sub_i,
+    input  exc_valid_i,
+    input [3:0] exc_cause_i,
+    input  is_mret_i,
     // Zicsr fields, just passing through to WB where csr lives
     input [11:0] csr_addr_i,
     input  csr_wen_i,
@@ -100,6 +103,9 @@ module id_ex #(
     output reg [2:0] alu_op_ex_o,
     output reg       alu_shift_ex_o,
     output reg       alu_sub_ex_o,
+    output reg  exc_valid_ex_o,
+    output reg [3:0] exc_cause_ex_o,
+    output reg  is_mret_ex_o,
     output reg [11:0] csr_addr_ex_o,
     output reg  csr_wen_ex_o,
     output reg [ 2:0] csr_op_ex_o,
@@ -132,6 +138,9 @@ module id_ex #(
       alu_op_ex_o    <= 3'b0;
       alu_shift_ex_o <= 1'b0;
       alu_sub_ex_o   <= 1'b0;
+      exc_valid_ex_o <= 1'b0;
+      exc_cause_ex_o <= 4'b0;
+      is_mret_ex_o <= 1'b0;
       csr_addr_ex_o <= 12'b0;
       csr_wen_ex_o <= 1'b0;
       csr_op_ex_o <= 3'b0;
@@ -159,6 +168,9 @@ module id_ex #(
       alu_op_ex_o    <= alu_op_i;
       alu_shift_ex_o <= alu_shift_i;
       alu_sub_ex_o   <= alu_sub_i;
+      exc_valid_ex_o <= exc_valid_i;
+      exc_cause_ex_o <= exc_cause_i;
+      is_mret_ex_o <= is_mret_i;
       csr_addr_ex_o <= csr_addr_i;
       csr_wen_ex_o <= csr_wen_i;
       csr_op_ex_o <= csr_op_i;

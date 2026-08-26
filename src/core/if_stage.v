@@ -30,6 +30,11 @@ module if_stage #(
     input stall_i,
 
     // Redirection from EX -- the fetch path taken earlier turned out to be wrong
+    // A trap outranks everything: it is not a guess and not a branch, it is
+    // the instruction stream being taken away.
+    input            trap_i,
+    input [XLEN-1:0] trap_pc_i,
+
     input            redirect_i,
     input [XLEN-1:0] redirect_pc_i,
 
@@ -52,15 +57,17 @@ module if_stage #(
   // --- Phase 2: Prepare Next PC ---
   // Three sources now, and the order between them is the whole point:
   //
+  //   0. trap      an exception committed in WB. Nothing outranks this.
   //   1. redirect   EX has resolved a branch and the guess was wrong. This is
   //                 fact, not prediction, so nothing may override it.
   //   2. prediction btb/bht think this fetch should jump. A guess, but a guess
   //                 made from history rather than from nothing.
   //   3. pc + 4     no reason to go anywhere else.
   //
-  // Written as a priority chain rather than a mux tree because more sources are
-  // coming: week 17 hangs trap entry off the same decision, above redirect.
-  assign pc_next = redirect_i    ? redirect_pc_i :
+  // Written as a priority chain rather than a mux tree, which is what made week
+  // 17 a one-line change: trap slots in at the top and nothing else moves.
+  assign pc_next = trap_i        ? trap_pc_i :
+                   redirect_i    ? redirect_pc_i :
                    pred_taken_i  ? pred_target_i :
                                    pc_plus4_o;
 
@@ -70,7 +77,7 @@ module if_stage #(
   pc u_pc (
       .clk_i(clk_i),
       .rst_i(rst_i),
-      .redirect_i(redirect_i),
+      .redirect_i(redirect_i || trap_i),
       .stall_i(stall_i),
       .pc_next_i(pc_next),
       .pc_o(pc_o)
