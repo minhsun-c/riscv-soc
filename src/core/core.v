@@ -34,15 +34,20 @@ module core #(
     input rst_i,
 
     // Instruction Memory Interface
+    output            im_req_o,
     output [XLEN-1:0] im_addr_o,
+    input             im_ready_i,
+    input             im_rvalid_i,
     input  [XLEN-1:0] im_data_i,
 
     // Data Memory Interface
+    output            dm_req_o,
     output [XLEN-1:0] dm_addr_o,
     output [XLEN-1:0] dm_wdata_o,
-    output            dm_we_o,
-    output [     2:0] dm_op_o,
-    input  [XLEN-1:0] data_rdata_i
+    output [     3:0] dm_wstrb_o,
+    input             dm_ready_i,
+    input             dm_rvalid_i,
+    input  [XLEN-1:0] dm_rdata_i
 );
 
   `include "rdsel.vh"
@@ -66,7 +71,42 @@ module core #(
   // An instruction enters EX exactly when this is low, which is how the
   // testbench counts retired instructions without adding a valid bit.
   wire flush_id_ex  /* verilator public */;
-  assign flush_id_ex = flush_jb | stall_all | flush_trap;  // inject a bubble into EX
+  // Nothing may be flushed while memory is holding the pipeline still. ex_mem
+  // is frozen during a memory stall, so the instruction in EX has not moved on
+  // yet -- injecting a bubble here would delete it rather than delay it. The
+  // redirect stays asserted for as long as the stall lasts, so the flush
+  // simply happens on the cycle the pipeline resumes.
+  assign flush_id_ex = ~mem_stall & (flush_jb | flush_trap | load_use_stall);
+
+  // Two different kinds of wait, and they do different things to the pipeline.
+  //
+  //   load-use   IF and ID freeze, and a bubble goes into EX. The instructions
+  //              already past ID keep moving -- that is how the bubble opens up
+  //              the cycle the consumer needs.
+  //   memory     nothing moves at all. Injecting a bubble here would drop the
+  //              instruction that is waiting.
+  wire load_use_stall;
+  wire im_wait = im_req_o && !(im_ready_i && im_rvalid_i);
+  // A request goes out once per instruction, not once per cycle. Without the
+  // issued flag, two memory instructions in a row see rvalid still high from
+  // the first one and the second accepts data that belongs to its predecessor.
+  reg dm_issued;
+  wire dm_access;
+  wire dm_wait = dm_access && !dm_rvalid_i;
+
+  always @(posedge clk_i) begin
+    if (rst_i) dm_issued <= 1'b0;
+    else if (!mem_stall) dm_issued <= 1'b0;             // a new instruction reached MEM
+    else if (dm_req_o && dm_ready_i) dm_issued <= 1'b1;  // this one has been asked
+  end
+  wire mem_stall = im_wait || dm_wait;
+
+  stall_ctrl u_stall_ctrl (
+      .load_use_i(load_use_stall),
+      .im_wait_i (im_wait),
+      .dm_wait_i (dm_wait),
+      .stall_o   (stall_all)
+  );
 
   hdu u_hdu (
       // From Decode Stage (the consumer)
@@ -79,7 +119,7 @@ module core #(
       .rd_src_ex_i   (ex_rd_src),
 
       // Output to Pipeline Control
-      .stall_o(stall_all)
+      .stall_o(load_use_stall)
   );
 
   // --- Forwarding Unit ---
@@ -166,6 +206,7 @@ module core #(
       .pc_o       (if_pc),
       .pc_plus4_o (if_pc_plus4)
   );
+  assign im_req_o  = 1'b1;   // fetch every cycle; the memory keeps up
   assign im_addr_o = if_pc;
 
   // --- IF/ID Register ---
@@ -266,6 +307,7 @@ module core #(
       .clk_i      (clk_i),
       .rst_i      (rst_i),
       .flush_i    (flush_id_ex),
+      .stall_i    (mem_stall),
       .pc_i       (id_pc),
       .pc_plus4_i (id_pc_plus4),
       .rs1_data_i (id_rs1_data_o),
@@ -400,7 +442,7 @@ module core #(
   ex_mem u_ex_mem (
       .clk_i       (clk_i),
       .rst_i       (rst_i),
-      .stall_i     (1'b0),
+      .stall_i     (mem_stall),
       .flush_i     (flush_ex_mem),
       .pc_plus4_i  (ex_pc_plus4),
       .alu_result_i(ex_alu_result),
@@ -436,10 +478,31 @@ module core #(
   );
 
   // --- MEM Stage (Data SRAM Interface) ---
-  assign dm_addr_o  = mem_alu_result;
-  assign dm_wdata_o = mem_rs2_data;
-  assign dm_we_o    = mem_mem_wen;
-  assign dm_op_o    = mem_mem_op;
+  // A load or store is in MEM this cycle. Anything else leaves the port idle.
+  wire mem_is_load  = (mem_rd_src == MEM_RDSEL);
+  wire mem_is_store = mem_mem_wen;
+  assign dm_access = mem_is_load || mem_is_store;
+  assign dm_req_o  = dm_access && !dm_issued;
+  assign dm_addr_o = mem_alu_result;
+
+  wire [XLEN-1:0] lsu_rdata;
+  wire [     3:0] lsu_wstrb;
+
+  lsu #(
+      .XLEN(XLEN)
+  ) u_lsu (
+      .mem_op_i    (mem_mem_op),
+      .addr_i      (mem_alu_result),
+      .wdata_i     (mem_rs2_data),
+      .wstrb_o     (lsu_wstrb),
+      .wdata_lane_o(dm_wdata_o),
+      .rdata_raw_i (dm_rdata_i),
+      .rdata_o     (lsu_rdata)
+  );
+
+  // WSTRB all zero means a read, so the store path and the read path share one
+  // request. Nothing else has to say which it is.
+  assign dm_wstrb_o = mem_is_store ? lsu_wstrb : 4'b0000;
 
   // --- MEM/WB Register ---
   wire [XLEN-1:0] wb_pc_plus4, wb_alu_result, wb_mem_data;
@@ -456,11 +519,11 @@ module core #(
   mem_wb u_mem_wb (
       .clk_i       (clk_i),
       .rst_i       (rst_i),
-      .stall_i     (1'b0),
+      .stall_i     (mem_stall),
       .flush_i     (flush_mem_wb),
       .pc_plus4_i  (mem_pc_plus4),
       .alu_result_i(mem_alu_result),
-      .mem_data_i  (data_rdata_i),
+      .mem_data_i  (lsu_rdata),
       .rd_addr_i   (mem_rd_addr),
       .rd_wen_i    (mem_rd_wen),
       .rd_src_i    (mem_rd_src),

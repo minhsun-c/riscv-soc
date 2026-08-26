@@ -1,134 +1,92 @@
 `timescale 1ns / 1ps
 
 /**
- * Module: sram
+ * Module: sram (Byte-Writable Memory with a Handshake)
  *
  * Description:
- * A RISC-V compatible Load-Store Unit (LSU) and memory wrapper. This 
- * module bridges the CPU pipeline and the physical SRAM block, handling 
- * alignment, byte-masking, and sign-extension.
+ * Storage and nothing else. Alignment, sign extension and byte selection all
+ * moved to lsu.v in week 18; what is left speaks in whole words plus a
+ * write-strobe mask, which is what a bus speaks.
  *
- * @param XLEN          Data width (32-bit for RV32I).
- * @param NUM_ENTRIES   Number of words (default 1024).
+ * The handshake is the other half of the change:
  *
- * @port clk_i          [Input]  [1:0]      System clock; triggers synchronous 
- *                                          writes.
- * @port addr_i         [Input]  [XLEN-1:0] 32-bit byte address from the 
- *                                          ALU.
- * @port wdata_i        [Input]  [XLEN-1:0] Raw data from the CPU's rs2 
- *                                          register.
- * @port we_i           [Input]  [1:0]      Master Write Enable for Store 
- *                                          instructions.
- * @port func3_i        [Input]  [2:0]      RISC-V func3 field determining 
- *                                          access width and extension.
+ *     req_i     the requester wants this access
+ *     ready_o   the memory can accept it this cycle
+ *     rvalid_o  read data is on rdata_o this cycle
  *
- * @port rdata_o        [Output] [XLEN-1:0] Final 32-bit data sent back to 
- *                                          the Register File.
+ * With LATENCY = 0 this is the old behaviour dressed in the new protocol:
+ * ready and rvalid are both immediate and rdata is combinational. With
+ * LATENCY = 1 the read is registered and the requester has to wait a cycle --
+ * which is the point. The pipeline has to learn to tolerate memory that does
+ * not answer instantly, because week 19 replaces this with a bus that
+ * genuinely cannot.
+ *
+ * Instruction fetch uses LATENCY = 0 and the data port uses 1. That asymmetry
+ * is a deliberate choice, not an oversight: making fetch multi-cycle without
+ * pipelining it would roughly double CPI, and pipelining fetch is a bigger
+ * change than this week should carry. See the week 18 lesson.
+ *
+ * @port req_i    [Input]             1 when an access is wanted this cycle.
+ * @port wstrb_i  [Input]  [3:0]      Byte enables. All zero means a read.
+ * @port ready_o  [Output]            1 when the access is accepted.
+ * @port rvalid_o [Output]            1 when rdata_o is the answer.
  */
 
+// 只用得到索引位元：低 2 位恆為 0，高位超出這塊記憶體的範圍
 /* verilator lint_off UNUSEDSIGNAL */
 
 module sram #(
     parameter XLEN = 32,
     parameter NUM_ENTRIES = 1024,
-    parameter ADDR_W = $clog2(NUM_ENTRIES)  // 10 for 1024 entries
+    parameter LATENCY = 0,
+    parameter ADDR_W = $clog2(NUM_ENTRIES)
 ) (
     input clk_i,
 
-    input      [XLEN-1:0] addr_i,
-    input      [XLEN-1:0] wdata_i,
-    input                 we_i,
-    input      [     2:0] func3_i,
-    output reg [XLEN-1:0] rdata_o
+    input            req_i,
+    input [XLEN-1:0] addr_i,
+    input [XLEN-1:0] wdata_i,
+    input [     3:0] wstrb_i,
+
+    output            ready_o,
+    output            rvalid_o,
+    output [XLEN-1:0] rdata_o
 );
-  `include "memop.vh"
 
-  // Internal Memory Array (Behavioral RAM)
-  // 1024 entries of 32-bit words
-  reg  [  XLEN-1:0] mem                            [0:NUM_ENTRIES-1]  /* verilator public */;
+  reg [XLEN-1:0] mem[0:NUM_ENTRIES-1]  /* verilator public */;
 
-  // Internal wires for word-aligned address
   wire [ADDR_W-1:0] word_addr = addr_i[ADDR_W+1:2];
-  wire [       1:0] byte_offset = addr_i[1:0];
 
-  // -------------------------------------------------------------------------
-  // SYNCHRONOUS WRITE LOGIC (LSU Store Logic)
-  // Handles partial writes (SB, SH, SW) using byte-masking.
-  // -------------------------------------------------------------------------
+  // This memory never makes anyone wait to be accepted. A bus will.
+  assign ready_o = 1'b1;
+
+  // --- Write: one lane per strobe bit, and nothing else touched ---
+  integer b;
   always @(posedge clk_i) begin
-    if (we_i) begin
-
-      case (func3_i)
-        SB_OP: begin
-          case (byte_offset)
-            2'b00: mem[word_addr][7:0] <= wdata_i[7:0];
-            2'b01: mem[word_addr][15:8] <= wdata_i[7:0];
-            2'b10: mem[word_addr][23:16] <= wdata_i[7:0];
-            2'b11: mem[word_addr][31:24] <= wdata_i[7:0];
-          endcase
-        end
-        SH_OP: begin
-          case (byte_offset[1])
-            1'b0: mem[word_addr][15:0] <= wdata_i[15:0];
-            1'b1: mem[word_addr][31:16] <= wdata_i[15:0];
-          endcase
-        end
-        SW_OP: begin
-          mem[word_addr] <= wdata_i;
-        end
-        default: begin
-          mem[word_addr] <= mem[word_addr];
-        end
-      endcase
-    end else begin
-      mem[word_addr] <= mem[word_addr];
+    if (req_i) begin
+      for (b = 0; b < 4; b = b + 1) begin
+        if (wstrb_i[b]) mem[word_addr][8*b+:8] <= wdata_i[8*b+:8];
+      end
     end
   end
 
-  // -------------------------------------------------------------------------
-  // ASYNCHRONOUS READ LOGIC (LSU Load Logic)
-  // Fetches the word and applies shifting/extension.
-  // -------------------------------------------------------------------------
-  always @(*) begin
-    case (func3_i)
-      LB_OP: begin
-        case (byte_offset)
-          2'b00: rdata_o = {{24{mem[word_addr][7]}}, mem[word_addr][7:0]};
-          2'b01: rdata_o = {{24{mem[word_addr][15]}}, mem[word_addr][15:8]};
-          2'b10: rdata_o = {{24{mem[word_addr][23]}}, mem[word_addr][23:16]};
-          2'b11: rdata_o = {{24{mem[word_addr][31]}}, mem[word_addr][31:24]};
-        endcase
+  // --- Read ---
+  generate
+    if (LATENCY == 0) begin : g_comb_read
+      assign rvalid_o = req_i;
+      assign rdata_o  = mem[word_addr];
+    end else begin : g_sync_read
+      reg            rv;
+      reg [XLEN-1:0] rd;
+      always @(posedge clk_i) begin
+        rv <= req_i;
+        rd <= mem[word_addr];
       end
-      LH_OP: begin
-        case (byte_offset[1])
-          1'b0: rdata_o = {{16{mem[word_addr][15]}}, mem[word_addr][15:0]};
-          1'b1: rdata_o = {{16{mem[word_addr][31]}}, mem[word_addr][31:16]};
-        endcase
-      end
-      LW_OP: begin
-        rdata_o = mem[word_addr];
-      end
-      LBU_OP: begin
-        case (byte_offset)
-          2'b00: rdata_o = {{24{1'b0}}, mem[word_addr][7:0]};
-          2'b01: rdata_o = {{24{1'b0}}, mem[word_addr][15:8]};
-          2'b10: rdata_o = {{24{1'b0}}, mem[word_addr][23:16]};
-          2'b11: rdata_o = {{24{1'b0}}, mem[word_addr][31:24]};
-        endcase
-      end
-      LHU_OP: begin
-        case (byte_offset[1])
-          1'b0: rdata_o = {{16{1'b0}}, mem[word_addr][15:0]};
-          1'b1: rdata_o = {{16{1'b0}}, mem[word_addr][31:16]};
-        endcase
-      end
-      default: begin
-        rdata_o = {XLEN{1'b0}};
-      end
-    endcase
-  end
+      assign rvalid_o = rv;
+      assign rdata_o  = rd;
+    end
+  endgenerate
 
 endmodule
 
 /* verilator lint_on UNUSEDSIGNAL */
-

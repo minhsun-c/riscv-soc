@@ -22,16 +22,15 @@ module cpu #(
     input rst_i
 );
 
-  // Instruction Memory Interface
-  wire [XLEN-1:0] im_addr;
-  wire [XLEN-1:0] im_data;
+  // Instruction memory port. LATENCY 0, so this handshake completes in the
+  // cycle it is issued -- the old behaviour, wearing the new protocol.
+  wire            im_req, im_ready, im_rvalid;
+  wire [XLEN-1:0] im_addr, im_data;
 
-  // Data Memory Interface
-  wire [XLEN-1:0] dm_addr;
-  wire [XLEN-1:0] dm_wdata;
-  wire            dm_we;
-  wire [     2:0] dm_op;
-  wire [XLEN-1:0] dm_rdata;
+  // Data memory port. LATENCY 1: every load and store costs a cycle now.
+  wire            dm_req, dm_ready, dm_rvalid;
+  wire [XLEN-1:0] dm_addr, dm_wdata, dm_rdata;
+  wire [     3:0] dm_wstrb;
 
   core #(
       .XLEN(XLEN)
@@ -39,48 +38,58 @@ module cpu #(
       .clk_i(clk_i),
       .rst_i(rst_i),
 
-      // IMEM Ports
-      .im_addr_o(im_addr),
-      .im_data_i(im_data),
+      .im_req_o   (im_req),
+      .im_addr_o  (im_addr),
+      .im_ready_i (im_ready),
+      .im_rvalid_i(im_rvalid),
+      .im_data_i  (im_data),
 
-      // DMEM Ports
-      .dm_addr_o   (dm_addr),
-      .dm_wdata_o  (dm_wdata),
-      .dm_we_o     (dm_we),
-      .dm_op_o     (dm_op),
-      .data_rdata_i(dm_rdata)
+      .dm_req_o   (dm_req),
+      .dm_addr_o  (dm_addr),
+      .dm_wdata_o (dm_wdata),
+      .dm_wstrb_o (dm_wstrb),
+      .dm_ready_i (dm_ready),
+      .dm_rvalid_i(dm_rvalid),
+      .dm_rdata_i (dm_rdata)
   );
 
   // -------------------------------------------------------------------------
-  // Instruction SRAM (IMEM)
+  // Instruction SRAM
   // -------------------------------------------------------------------------
-  // Note: Instructions are always word-aligned (LW_OP) and we never write 
-  // to IMEM from the core side in a basic Harvard setup.
+  // Zero latency, and the core never writes it -- wstrb tied off means every
+  // access is a read. Making this one cycle without pipelining fetch would
+  // roughly double CPI; see the week 18 lesson.
   sram #(
       .XLEN(XLEN),
-      .NUM_ENTRIES(1024)
+      .NUM_ENTRIES(1024),
+      .LATENCY(0)
   ) u_imem (
-      .clk_i  (clk_i),
-      .addr_i (im_addr),
-      .wdata_i({XLEN{1'b0}}),  // No writes from core
-      .we_i   (1'b0),          // Read-only for core
-      .func3_i(3'b010),        // Always LW_OP (32-bit instructions)
-      .rdata_o(im_data)
+      .clk_i   (clk_i),
+      .req_i   (im_req),
+      .addr_i  (im_addr),
+      .wdata_i ({XLEN{1'b0}}),
+      .wstrb_i (4'b0000),
+      .ready_o (im_ready),
+      .rvalid_o(im_rvalid),
+      .rdata_o (im_data)
   );
 
   // -------------------------------------------------------------------------
-  // Data SRAM (DMEM)
+  // Data SRAM
   // -------------------------------------------------------------------------
   sram #(
       .XLEN(XLEN),
-      .NUM_ENTRIES(1024)
+      .NUM_ENTRIES(1024),
+      .LATENCY(1)
   ) u_dmem (
-      .clk_i  (clk_i),
-      .addr_i (dm_addr),
-      .wdata_i(dm_wdata),
-      .we_i   (dm_we),
-      .func3_i(dm_op),     // Connects to dm_op_o for SB, LH, LW, etc.
-      .rdata_o(dm_rdata)
+      .clk_i   (clk_i),
+      .req_i   (dm_req),
+      .addr_i  (dm_addr),
+      .wdata_i (dm_wdata),
+      .wstrb_i (dm_wstrb),
+      .ready_o (dm_ready),
+      .rvalid_o(dm_rvalid),
+      .rdata_o (dm_rdata)
   );
 
 endmodule

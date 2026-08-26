@@ -11,7 +11,10 @@
 #include "Vcpu_core.h"
 #include "Vcpu_cpu.h"
 #include "Vcpu_regfile.h"
+// The two SRAMs now differ by their LATENCY parameter, so Verilator emits a
+// class per specialisation. imem is the LATENCY=0 one, dmem the LATENCY=1.
 #include "Vcpu_sram.h"
+#include "Vcpu_sram__L1.h"
 
 // Testbench Utilities
 #include "checker.h"

@@ -206,7 +206,9 @@ int main(int argc, char **argv)
         init_vcd(dut, trace_file);
 
     dut->im_data_i = 0;
-    dut->data_rdata_i = 0;
+    dut->dm_rdata_i = 0;
+    // One-cycle delay line for the data port's LATENCY 1 behaviour.
+    uint32_t dm_req_prev = 0, dm_rdata_prev = 0;
 
     dut->rst_i = 1;
     tick(dut);
@@ -226,19 +228,36 @@ int main(int argc, char **argv)
             bad_pc = pc;
             break;
         }
+        dut->im_ready_i = 1;
+        dut->im_rvalid_i = dut->im_req_o;
         dut->im_data_i = mem[pc >> 2];
 
         // --- data port ---
+        // Since week 18 the core speaks words plus WSTRB, and lsu.v does the
+        // alignment and sign extension that this model used to do. So the
+        // memory here is now genuinely dumb, which is the point.
+        dut->dm_ready_i = 1;
+        dut->dm_rvalid_i = dm_req_prev;
+        dut->dm_rdata_i = dm_rdata_prev;
+
         uint32_t addr = dut->dm_addr_o;
-        if (dut->dm_we_o) {
-            if (addr == TOHOST_ADDR) {
+        if (dut->dm_req_o && dut->dm_wstrb_o != 0) {
+            if ((addr & ~3u) == TOHOST_ADDR) {
                 tohost = dut->dm_wdata_o;
                 finished = true;
-            } else {
-                dm_write(addr, dut->dm_wdata_o, dut->dm_op_o);
+            } else if (addr < RAM_SIZE) {
+                uint32_t w = mem[addr >> 2];
+                for (int b = 0; b < 4; b++) {
+                    if (dut->dm_wstrb_o & (1 << b)) {
+                        w = (w & ~(0xFFu << (8 * b)))
+                            | (dut->dm_wdata_o & (0xFFu << (8 * b)));
+                    }
+                }
+                mem[addr >> 2] = w;
             }
         }
-        dut->data_rdata_i = dm_read(addr, dut->dm_op_o);
+        dm_req_prev = dut->dm_req_o;
+        dm_rdata_prev = (addr < RAM_SIZE) ? mem[addr >> 2] : 0;
 
         tick(dut);
 

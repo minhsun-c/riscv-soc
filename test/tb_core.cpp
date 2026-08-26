@@ -77,15 +77,37 @@ int main(int argc, char **argv)
     // cycle where the PC is still moving, and report the snapshot.
     uint64_t f_cycles = 0, f_instret = 0, f_stalls = 0, f_branches = 0, f_mis = 0;
 
-    for (int i = 0; i < 8000; i++) {
+    // One-cycle delay line for the data port's LATENCY 1 behaviour.
+
+    uint32_t dm_req_prev = 0, dm_rdata_prev = 0;
+
+
+    for (int i = 0; i < 30000; i++) {
+        // Instruction port: LATENCY 0, so it answers in the cycle it is asked.
         uint32_t pc_idx = (dut->im_addr_o & 0xFFF) >> 2;
+        dut->im_ready_i = 1;
+        dut->im_rvalid_i = dut->im_req_o;
         dut->im_data_i = imem[pc_idx];
 
+        // Data port: LATENCY 1. The answer to this cycle's request appears
+        // next cycle, which is what makes the pipeline wait.
+        dut->dm_ready_i = 1;
+        dut->dm_rvalid_i = dm_req_prev;
+        dut->dm_rdata_i = dm_rdata_prev;
+
         uint32_t data_idx = (dut->dm_addr_o & 0xFFF) >> 2;
-        if (dut->dm_we_o) {
-            dmem[data_idx] = dut->dm_wdata_o;
+        if (dut->dm_req_o) {
+            uint32_t w = dmem[data_idx];
+            for (int b = 0; b < 4; b++) {
+                if (dut->dm_wstrb_o & (1 << b)) {
+                    w = (w & ~(0xFFu << (8 * b)))
+                        | (dut->dm_wdata_o & (0xFFu << (8 * b)));
+                }
+            }
+            dmem[data_idx] = w;
         }
-        dut->data_rdata_i = dmem[data_idx];
+        dm_req_prev = dut->dm_req_o;
+        dm_rdata_prev = dmem[data_idx];
 
         if (!done) {
             if (dut->rootp->core->cf_resolved && dut->rootp->core->ex_jb_taken

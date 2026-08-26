@@ -45,6 +45,10 @@ module id_ex #(
     input clk_i,
     input rst_i,
     input flush_i,
+    // Distinct from flush: a memory stall freezes the whole pipeline, so this
+    // register must hold rather than inject a bubble. A load-use stall is the
+    // opposite -- there the bubble is the entire point.
+    input stall_i,
 
     // Data Inputs from ID
     input [XLEN-1:0] pc_i,
@@ -150,6 +154,8 @@ module id_ex #(
       jump_ex_o      <= 1'b0;
       mem_wen_ex_o   <= 1'b0;
       mem_op_ex_o    <= 3'b0;
+    end else if (stall_i) begin
+      // hold everything
     end else begin
       pc_ex_o        <= pc_i;
       pc_plus4_ex_o  <= pc_plus4_i;
