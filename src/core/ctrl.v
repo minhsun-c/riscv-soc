@@ -17,6 +17,11 @@
  *                                         (0:ALU, 1:MEM, 2:PC+4, 3:ELSE).
  * @port imm_sel_o     [Output] [2:0]      Immediate format selector (0:I, 1:S, 2:B, 
  *                                         3:U, 4:J).
+ * @port rs1_ren_o     [Output] [1:0]      1 if the rs1 field holds a real register 
+ *                                         reference. U/J formats reuse those bits 
+ *                                         for the immediate, so they must read x0.
+ * @port rs2_ren_o     [Output] [1:0]      1 if the rs2 field holds a real register 
+ *                                         reference. I/U/J formats must read x0.
  * @port alu_src_a_o   [Output] [1:0]      ALU operand A source (0 = rs1, 1 = pc).
  * @port alu_src_b_o   [Output] [1:0]      ALU operand B source (0 = rs2, 1 = immediate).
  * @port alu_op_o      [Output] [2:0]      3-bit ALU operation selector.
@@ -43,6 +48,8 @@ module ctrl (
     output reg       rd_wen_o,
     output reg [1:0] rd_src_o,
     output reg [2:0] imm_sel_o,
+    output reg       rs1_ren_o,
+    output reg       rs2_ren_o,
 
     // ALU Signals
     output reg       alu_src_a_o,
@@ -72,6 +79,8 @@ module ctrl (
 
     case (opcode_i)
       R_TYPE: begin
+        rs1_ren_o   = 1'b1;
+        rs2_ren_o   = 1'b1;
         rd_wen_o    = 1'b1;
         imm_sel_o   = NO_IMM_MODE;
         alu_src_a_o = 1'b0;  // Use rs1
@@ -93,6 +102,8 @@ module ctrl (
       end
 
       I_ALU: begin
+        rs1_ren_o   = 1'b1;
+        rs2_ren_o   = 1'b0;
         rd_wen_o    = 1'b1;
         imm_sel_o   = I_IMM_MODE;
         alu_src_a_o = 1'b0;  // Use rs1
@@ -112,6 +123,8 @@ module ctrl (
       end
 
       I_LOAD: begin
+        rs1_ren_o   = 1'b1;
+        rs2_ren_o   = 1'b0;
         rd_wen_o    = 1'b1;
         imm_sel_o   = I_IMM_MODE;
         alu_src_a_o = 1'b0;  // Use rs1
@@ -128,6 +141,8 @@ module ctrl (
       end
 
       S_TYPE: begin
+        rs1_ren_o   = 1'b1;
+        rs2_ren_o   = 1'b1;
         rd_wen_o    = 1'b0;
         imm_sel_o   = S_IMM_MODE;
         alu_src_a_o = 1'b0;  // Use rs1
@@ -144,6 +159,8 @@ module ctrl (
       end
 
       B_TYPE: begin
+        rs1_ren_o   = 1'b1;
+        rs2_ren_o   = 1'b1;
         rd_wen_o  = 1'b0;
         imm_sel_o = B_IMM_MODE;
         alu_src_a_o    = 1'b0;  // Use rs1
@@ -172,6 +189,8 @@ module ctrl (
       end
 
       U_LUI: begin
+        rs1_ren_o   = 1'b0;
+        rs2_ren_o   = 1'b0;
         rd_wen_o    = 1'b1;
         imm_sel_o   = U_IMM_MODE;
         alu_src_a_o = 1'b0;  // Use rs1
@@ -188,6 +207,8 @@ module ctrl (
       end
 
       U_AUIPC: begin
+        rs1_ren_o   = 1'b0;
+        rs2_ren_o   = 1'b0;
         rd_wen_o    = 1'b1;
         imm_sel_o   = U_IMM_MODE;
         alu_src_a_o = 1'b1;  // Use pc
@@ -204,6 +225,8 @@ module ctrl (
       end
 
       J_JAL: begin
+        rs1_ren_o   = 1'b0;
+        rs2_ren_o   = 1'b0;
         rd_wen_o    = 1'b1;
         imm_sel_o   = J_IMM_MODE;
         alu_src_a_o = 1'b1;  // Use pc
@@ -220,6 +243,8 @@ module ctrl (
       end
 
       I_JALR: begin
+        rs1_ren_o   = 1'b1;
+        rs2_ren_o   = 1'b0;
         rd_wen_o    = 1'b1;
         imm_sel_o   = I_IMM_MODE;
         alu_src_a_o = 1'b0;  // Use rs1
@@ -236,6 +261,8 @@ module ctrl (
       end
 
       default: begin
+        rs1_ren_o   = 1'b0;
+        rs2_ren_o   = 1'b0;
         rd_wen_o    = 1'b0;
         imm_sel_o   = NO_IMM_MODE;
         alu_src_a_o = 1'b0;  // Don't care

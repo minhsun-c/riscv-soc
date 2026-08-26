@@ -87,13 +87,19 @@ module id_stage #(
   wire [2:0] ctrl_imm_sel;
   wire       ctrl_alu_sub;
 
+  // --- Raw register fields, before format masking ---
+  wire [4:0] dec_rs1;
+  wire [4:0] dec_rs2;
+  wire       ctrl_rs1_ren;
+  wire       ctrl_rs2_ren;
+
   decoder u_decoder (
       .inst_i  (inst_i),
       .opcode_o(dec_opcode),
       .rd_o    (rd_addr_o),
       .funct3_o(dec_funct3),
-      .rs1_o   (rs1_addr_o),
-      .rs2_o   (rs2_addr_o),
+      .rs1_o   (dec_rs1),
+      .rs2_o   (dec_rs2),
       .funct7_o(dec_funct7)
   );
 
@@ -107,6 +113,8 @@ module id_stage #(
       .rd_src_o (rd_src_o),
       .rd_wen_o (rd_wen_o),
       .imm_sel_o(ctrl_imm_sel),
+      .rs1_ren_o(ctrl_rs1_ren),
+      .rs2_ren_o(ctrl_rs2_ren),
 
       // ALU Signals
       .alu_src_a_o(alu_src_a_o),
@@ -130,6 +138,16 @@ module id_stage #(
       .sel_i (ctrl_imm_sel),
       .imm_o (imm_o)
   );
+
+  // The decoder slices rs1/rs2 out of fixed bit positions, but not every
+  // instruction format actually stores a register there: U and J types spend
+  // inst[19:15] on the immediate, and I types spend inst[24:20] on it. Feeding
+  // those bits to the register file makes LUI read a pseudo-random register and
+  // add it to the immediate, and makes the HDU stall on dependencies that do
+  // not exist. Forcing the address to x0 yields the zero operand LUI needs and
+  // keeps the hazard comparison honest.
+  assign rs1_addr_o = ctrl_rs1_ren ? dec_rs1 : 5'd0;
+  assign rs2_addr_o = ctrl_rs2_ren ? dec_rs2 : 5'd0;
 
   assign rs1_data_o = rs1_data_i;
   assign rs2_data_o = (ctrl_alu_sub) ? ~rs2_data_i + 1 : rs2_data_i;
