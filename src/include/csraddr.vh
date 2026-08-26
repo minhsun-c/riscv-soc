@@ -13,9 +13,16 @@ localparam [11:0] CSR_MCAUSE   = 12'h342;  // why the trap happened
 localparam [11:0] CSR_MTVAL    = 12'h343;  // extra detail about the cause
 localparam [11:0] CSR_MIP      = 12'h344;  // which interrupts are pending
 
+// Hardware performance counters. Read-only here: they count, software reads.
+localparam [11:0] CSR_MCYCLE   = 12'hB00;  // cycles since reset
+localparam [11:0] CSR_MINSTRET = 12'hB02;  // instructions retired
+
 // mstatus bit positions actually used here. The rest of the register reads 0.
 localparam integer MSTATUS_MIE  = 3;   // interrupts enabled now
 localparam integer MSTATUS_MPIE = 7;   // interrupts were enabled before the trap
+
+// mie / mip share a bit layout. Only the machine timer bit is implemented.
+localparam integer MTIP_BIT = 7;
 
 `undef __CSR_ADDR_LOCALPARAM
 `endif  // __CSR_ADDR_LOCALPARAM

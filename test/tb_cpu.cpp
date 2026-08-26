@@ -14,6 +14,8 @@
 // imem is still a plain sram; dmem is behind the bus now.
 #include "Vcpu_sram.h"
 #include "Vcpu_axil_sram.h"
+#include "Vcpu_axil_uart.h"
+#include "Vcpu_axil_timer.h"
 
 // Testbench Utilities
 #include "checker.h"
@@ -26,6 +28,10 @@ vluint64_t sim_time = 0;
 
 // Memory Pointers: These will be "hotwired" to the Verilog SRAM arrays
 uint32_t *imem = nullptr;
+
+// Whatever the UART emitted, in order. Week 20's test reads this.
+std::string uart_out;
+int irq_taken = 0;
 uint32_t *dmem = nullptr;
 
 // --- Macro Magic for Dynamic Includes ---
@@ -88,7 +94,7 @@ int main(int argc, char **argv)
     init_vcd(dut, vcd_name);
 
 
-#if TESTNUM >= 6
+#if TESTNUM >= 6 && TESTNUM <= 8
     load_binary_to_hardware(BIN_PATH);
 #else
     // Calls the hardcoded loader inside test1.h - test5.h
@@ -106,7 +112,11 @@ int main(int argc, char **argv)
 
     printf("--- Starting Simulation: Test %d ---\n", TESTNUM);
 
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < 40000; i++) {
+        // A character leaves the UART for exactly one cycle.
+        if (dut->rootp->cpu->u_uart->tx_valid_o)
+            uart_out.push_back((char) dut->rootp->cpu->u_uart->tx_data_o);
+
         // Falling Edge
         dut->clk_i = 0;
         dut->eval();
@@ -124,7 +134,7 @@ int main(int argc, char **argv)
         sim_time++;
     }
 
-#if TESTNUM >= 6
+#if TESTNUM >= 6 && TESTNUM <= 8
     verify_results(dut);
 #else
     verify_results(dut->rootp->cpu->u_core);

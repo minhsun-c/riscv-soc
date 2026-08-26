@@ -59,9 +59,19 @@ module csr #(
     input [XLEN-1:0] trap_pc_i,
     input [XLEN-1:0] trap_tval_i,
     input            mret_i,
+    // 1 when the trap being taken is an interrupt rather than an exception.
+    input            trap_is_irq_i,
+
+    // Level from the timer. mip is not a register software writes -- it
+    // reflects the wire, which is why clearing it means fixing the cause.
+    input            mtip_i,
+    input            instret_i,
 
     output [XLEN-1:0] mtvec_o,
-    output [XLEN-1:0] mepc_o
+    output [XLEN-1:0] mepc_o,
+
+    // All three conditions the spec requires before an interrupt is taken.
+    output            irq_pending_o
 );
 
   `include "csraddr.vh"
@@ -77,7 +87,14 @@ module csr #(
   reg [XLEN-1:0] mepc  /* verilator public */;
   reg [XLEN-1:0] mcause  /* verilator public */;
   reg [XLEN-1:0] mtval  /* verilator public */;
-  reg [XLEN-1:0] mip  /* verilator public */;
+  reg [XLEN-1:0] mcycle  /* verilator public */;
+  reg [XLEN-1:0] minstret  /* verilator public */;
+
+  // mip is driven by hardware, not stored. A pending interrupt goes away
+  // when the device stops asking, not when software writes a bit.
+  wire [XLEN-1:0] mip = {{(XLEN - MTIP_BIT - 1) {1'b0}}, mtip_i, {MTIP_BIT{1'b0}}};
+
+  assign irq_pending_o = mstatus[MSTATUS_MIE] && mie[MTIP_BIT] && mip[MTIP_BIT];
 
   reg [XLEN-1:0] rdata;
   assign rdata_o = rdata;
@@ -96,6 +113,8 @@ module csr #(
       CSR_MCAUSE:   rdata = mcause;
       CSR_MTVAL:    rdata = mtval;
       CSR_MIP:      rdata = mip;
+      CSR_MCYCLE:   rdata = mcycle;
+      CSR_MINSTRET: rdata = minstret;
       default:      rdata = {XLEN{1'b0}};
     endcase
   end
@@ -124,14 +143,24 @@ module csr #(
       mepc     <= {XLEN{1'b0}};
       mcause   <= {XLEN{1'b0}};
       mtval    <= {XLEN{1'b0}};
-      mip      <= {XLEN{1'b0}};
+      mcycle   <= {XLEN{1'b0}};
+      minstret <= {XLEN{1'b0}};
+    end else begin
+      // Counters run regardless of what else is happening, which is the
+      // only way they can measure it.
+      mcycle <= mcycle + 32'd1;
+      if (instret_i) minstret <= minstret + 32'd1;
+    end
+
+    if (rst_i) begin
     end else if (trap_i) begin
       // Hardware wins over any Zicsr write in the same cycle: the instruction
       // that would have done the write is the one being trapped, so its write
       // must not happen. core also clears wen_i, but the ordering here says so
       // explicitly rather than relying on that.
       mepc   <= trap_pc_i;
-      mcause <= {28'b0, trap_cause_i};
+      // Bit 31 is what separates an interrupt from an exception.
+      mcause <= {trap_is_irq_i, 27'b0, trap_cause_i};
       mtval  <= trap_tval_i;
       // Interrupts off inside the handler, with the previous state saved so
       // mret can put it back. This is the whole of mstatus that matters here.
@@ -149,7 +178,6 @@ module csr #(
         CSR_MEPC:     mepc <= wdata;
         CSR_MCAUSE:   mcause <= wdata;
         CSR_MTVAL:    mtval <= wdata;
-        CSR_MIP:      mip <= wdata;
         default:      ;  // unimplemented CSR: write discarded
       endcase
     end

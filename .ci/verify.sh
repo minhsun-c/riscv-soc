@@ -5,7 +5,7 @@ TARGETS=(
   alu bcu hdu fwd btb bht csr lsu stall_ctrl axil_master if_id id_ex ex_mem mem_wb
   if_stage id_stage ex_stage wb_stage
   core-1 core-2 core-3 core-4 core-5 core-6 core-7 core-8 core-10 core-11
-  cpu-1 cpu-2 cpu-3 cpu-4 cpu-5 cpu-6 cpu-7 cpu-8
+  cpu-1 cpu-2 cpu-3 cpu-4 cpu-5 cpu-6 cpu-7 cpu-8 cpu-12
   riscv-tests
 )
 

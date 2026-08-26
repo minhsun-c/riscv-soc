@@ -36,6 +36,9 @@ module cpu #(
   wire [XLEN-1:0] dm_addr, dm_wdata, dm_rdata;
   wire [     3:0] dm_wstrb;
 
+  // The timer's request for attention.
+  wire            mtip;
+
   core #(
       .XLEN(XLEN)
   ) u_core (
@@ -54,7 +57,8 @@ module cpu #(
       .dm_wstrb_o (dm_wstrb),
       .dm_ready_i (dm_ready),
       .dm_rvalid_i(dm_rvalid),
-      .dm_rdata_i (dm_rdata)
+      .dm_rdata_i (dm_rdata),
+      .mtip_i     (mtip)
   );
 
   // -------------------------------------------------------------------------
@@ -159,15 +163,46 @@ module cpu #(
       .rresp_o  (ram_rresp)
   );
 
-  // Slots 1 and 2 are empty until week 20. Tying READY high and VALID low
-  // means an access to them completes immediately with zeros rather than
-  // hanging the bus -- the same reasoning as the xbar's unmapped-address path.
-  assign s_awready[2:1] = 2'b11;
-  assign s_wready[2:1]  = 2'b11;
-  assign s_bvalid[2:1]  = 2'b00;
-  assign s_arready[2:1] = 2'b11;
-  assign s_rvalid[2:1]  = 2'b00;
-  assign s_rdata[XLEN*3-1:XLEN] = {(2 * XLEN) {1'b0}};
+  // -------------------------------------------------------------------------
+  // Peripherals
+  // -------------------------------------------------------------------------
+  // These plug into the slots week 19 left empty. The crossbar does not change.
+  wire [1:0] uart_bresp, uart_rresp, timer_bresp, timer_rresp;
+  wire       uart_tx_valid;
+  wire [7:0] uart_tx_data;
+
+  axil_uart #(
+      .XLEN(XLEN)
+  ) u_uart (
+      .clk_i(clk_i),
+      .rst_i(rst_i),
+
+      .awvalid_i(s_awvalid[1]), .awready_o(s_awready[1]), .awaddr_i(s_awaddr),
+      .wvalid_i (s_wvalid[1]),  .wready_o (s_wready[1]),  .wdata_i (s_wdata), .wstrb_i(s_wstrb),
+      .bvalid_o (s_bvalid[1]),  .bready_i (s_bready[1]),  .bresp_o (uart_bresp),
+      .arvalid_i(s_arvalid[1]), .arready_o(s_arready[1]), .araddr_i(s_araddr),
+      .rvalid_o (s_rvalid[1]),  .rready_i (s_rready[1]),  .rdata_o (s_rdata[XLEN*2-1:XLEN]),
+      .rresp_o  (uart_rresp),
+
+      // The testbench reads these directly; a real chip would drive a pin.
+      .tx_valid_o(uart_tx_valid), .tx_data_o(uart_tx_data)
+  );
+
+  axil_timer #(
+      .XLEN(XLEN)
+  ) u_timer (
+      .clk_i(clk_i),
+      .rst_i(rst_i),
+
+      .awvalid_i(s_awvalid[2]), .awready_o(s_awready[2]), .awaddr_i(s_awaddr),
+      .wvalid_i (s_wvalid[2]),  .wready_o (s_wready[2]),  .wdata_i (s_wdata), .wstrb_i(s_wstrb),
+      .bvalid_o (s_bvalid[2]),  .bready_i (s_bready[2]),  .bresp_o (timer_bresp),
+      .arvalid_i(s_arvalid[2]), .arready_o(s_arready[2]), .araddr_i(s_araddr),
+      .rvalid_o (s_rvalid[2]),  .rready_i (s_rready[2]),  .rdata_o (s_rdata[XLEN*3-1:XLEN*2]),
+      .rresp_o  (timer_rresp),
+
+      .mtip_o(mtip)
+  );
 
 endmodule
 

@@ -11,6 +11,11 @@ localparam [3:0] EXC_LOAD_MISALIGNED  = 4'd4;
 localparam [3:0] EXC_STORE_MISALIGNED = 4'd6;
 localparam [3:0] EXC_ECALL_M          = 4'd11;
 
+// Interrupts use the same cause field with bit 31 set, which is how software
+// tells "this instruction did something wrong" from "something outside asked
+// for attention".
+localparam [3:0] IRQ_MACHINE_TIMER    = 4'd7;
+
 // The immediate field of a SYSTEM instruction with funct3 = 000 says which
 // privileged instruction it is.
 localparam [11:0] PRIV_ECALL  = 12'h000;

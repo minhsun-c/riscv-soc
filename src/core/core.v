@@ -47,7 +47,11 @@ module core #(
     output [     3:0] dm_wstrb_o,
     input             dm_ready_i,
     input             dm_rvalid_i,
-    input  [XLEN-1:0] dm_rdata_i
+    input  [XLEN-1:0] dm_rdata_i,
+
+    // Level from the machine timer. The first thing in this design that
+    // asks for attention without an instruction having caused it.
+    input             mtip_i
 );
 
   `include "rdsel.vh"
@@ -508,6 +512,7 @@ module core #(
   wire [XLEN-1:0] wb_pc_plus4, wb_alu_result, wb_mem_data;
   wire [4:0] wb_rd_addr;
   wire [2:0] wb_rd_src;
+  wire       wb_is_store;
   wire wb_exc_valid  /* verilator public */;
   wire wb_is_mret  /* verilator public */;
   wire [3:0] wb_exc_cause  /* verilator public */;
@@ -527,6 +532,7 @@ module core #(
       .rd_addr_i   (mem_rd_addr),
       .rd_wen_i    (mem_rd_wen),
       .rd_src_i    (mem_rd_src),
+      .is_store_i  (mem_is_store),
       .csr_addr_i  (mem_csr_addr),
       .csr_wen_i   (mem_csr_wen),
       .csr_op_i    (mem_csr_op),
@@ -540,6 +546,7 @@ module core #(
       .rd_addr_o   (wb_rd_addr),
       .rd_wen_o    (wb_rd_wen),
       .rd_src_o    (wb_rd_src),
+      .is_store_o  (wb_is_store),
       .csr_addr_o  (wb_csr_addr),
       .csr_wen_o   (wb_csr_wen),
       .csr_op_o    (wb_csr_op),
@@ -565,10 +572,14 @@ module core #(
       .operand_i(wb_csr_operand),
 
       .trap_i      (trap_take),
-      .trap_cause_i(wb_exc_cause),
+      .trap_cause_i(trap_cause),
       .trap_pc_i   (trap_pc),
       .trap_tval_i (trap_tval),
       .mret_i      (mret_take),
+      .trap_is_irq_i(take_irq),
+      .mtip_i      (mtip_i),
+      .instret_i   (instret),
+      .irq_pending_o(irq_pending),
       .mtvec_o     (wb_mtvec),
       .mepc_o      (wb_mepc)
   );
@@ -581,21 +592,61 @@ module core #(
   // and everything after it is squashed. Since WB is the last stage, "before"
   // needs no work -- those instructions are gone. "After" is the four flushes
   // below.
+  // A bubble in WB has pc_plus4 = 0, because mem_wb flushes to zero and no
+  // real instruction can have pc + 4 == 0. That is the validity signal, and it
+  // costs nothing -- an explicit valid bit through three pipeline registers
+  // would say the same thing for 3 more flops.
+  wire wb_valid = (wb_pc_plus4 != {XLEN{1'b0}});
+
+  // An interrupt differs from an exception in two ways that matter here.
+  //
+  // First, the instruction in WB is not at fault, so it retires normally and
+  // mepc points at the *next* instruction. Squashing it instead would mean
+  // mret re-executes it -- and a store performs its write in MEM, so
+  // re-executing one would write twice.
+  //
+  // Second, it can wait. mtip is a level, so holding off until no memory
+  // access is in flight costs a few cycles and removes the case where the
+  // pipeline is flushed with a bus transaction half finished.
+  wire exc_take = wb_exc_valid;
+
+  // An interrupt is taken the same way an exception is -- the instruction in
+  // WB is squashed and mepc points at it, so mret re-executes it. Setting mepc
+  // to pc+4 and letting it retire looks simpler until the instruction is a
+  // taken branch, where pc+4 is not the next instruction at all.
+  //
+  // Re-executing is only safe for an instruction that has left no trace, so
+  // two cases are refused. A store commits in MEM, so by the time it reaches
+  // WB the write has happened and running it again would write twice; and an
+  // access still in flight would be flushed half finished. mtip is a level, so
+  // waiting a cycle or two for a quiet moment costs nothing.
+  wire take_irq = irq_pending && wb_valid && !exc_take && !wb_is_mret
+      && !dm_access && !wb_is_store;
+
   wire trap_take  /* verilator public */;
-  assign trap_take = wb_exc_valid;
+  assign trap_take = exc_take || take_irq;
   assign flush_trap = trap_take || mret_take;
   wire mret_take  /* verilator public */;
   assign mret_take = wb_is_mret && !wb_exc_valid;
 
   // mtval carries the address for a misaligned access and nothing otherwise.
   // The spec allows 0 when the implementation has nothing useful to say.
-  wire misaligned_cause = (wb_exc_cause == EXC_LOAD_MISALIGNED)
+  wire misaligned_cause = !take_irq && (wb_exc_cause == EXC_LOAD_MISALIGNED)
       || (wb_exc_cause == EXC_STORE_MISALIGNED);
   wire [XLEN-1:0] trap_tval = misaligned_cause ? wb_alu_result : {XLEN{1'b0}};
 
   // pc_plus4 - 4 is the instruction's own PC. Carrying pc through two more
   // pipeline registers to say the same thing would cost 64 flops.
+  // An exception returns to the faulting instruction; an interrupt returns
+  // to the one after the instruction that happened to be committing.
   wire [XLEN-1:0] trap_pc = wb_pc_plus4 - 32'd4;
+
+  wire [3:0] trap_cause = take_irq ? IRQ_MACHINE_TIMER : wb_exc_cause;
+
+  // Retired means committed: reached WB and was not squashed.
+  wire instret = wb_valid && !trap_take;
+
+  wire irq_pending;
 
   // --- WB Stage ---
   wire [XLEN-1:0] wb_final_data;

@@ -42,6 +42,9 @@ module mem_wb #(
     // Control Inputs
     input       rd_wen_i,
     input [2:0] rd_src_i,
+    // Needed only so that an interrupt can refuse to squash an instruction
+    // that has already written memory. Stores commit in MEM, not here.
+    input       is_store_i,
     input  exc_valid_i,
     input [3:0] exc_cause_i,
     input  is_mret_i,
@@ -57,6 +60,7 @@ module mem_wb #(
     output reg [     4:0] rd_addr_o,
     output reg            rd_wen_o,
     output reg [     2:0] rd_src_o,
+    output reg            is_store_o,
     output reg  exc_valid_o,
     output reg [3:0] exc_cause_o,
     output reg  is_mret_o,
@@ -72,6 +76,7 @@ module mem_wb #(
       alu_result_o <= {XLEN{1'b0}};
       mem_data_o   <= {XLEN{1'b0}};
       rd_src_o     <= 3'b0;
+      is_store_o   <= 1'b0;
       exc_valid_o <= 1'b0;
       exc_cause_o <= 4'b0;
       is_mret_o <= 1'b0;
@@ -86,6 +91,7 @@ module mem_wb #(
       alu_result_o <= alu_result_o;
       mem_data_o   <= mem_data_o;
       rd_src_o     <= rd_src_o;
+      is_store_o   <= is_store_o;
       exc_valid_o <= exc_valid_o;
       exc_cause_o <= exc_cause_o;
       is_mret_o <= is_mret_o;
@@ -100,6 +106,7 @@ module mem_wb #(
       alu_result_o <= alu_result_i;
       mem_data_o   <= mem_data_i;
       rd_src_o     <= rd_src_i;
+      is_store_o   <= is_store_i;
       exc_valid_o <= exc_valid_i;
       exc_cause_o <= exc_cause_i;
       is_mret_o <= is_mret_i;
