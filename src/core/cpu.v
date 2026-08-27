@@ -109,11 +109,11 @@ module cpu #(
       .rvalid_o(dm_rvalid),
       .rdata_o (dm_rdata),
 
-      .awvalid_o(aw_valid), .awready_i(aw_ready), .awaddr_o(aw_addr),
-      .wvalid_o (w_valid),  .wready_i (w_ready),  .wdata_o (w_data), .wstrb_o(w_strb),
-      .bvalid_i (b_valid),  .bready_o (b_ready),  .bresp_i (b_resp),
-      .arvalid_o(ar_valid), .arready_i(ar_ready), .araddr_o(ar_addr),
-      .rvalid_i (r_valid),  .rready_o (r_ready),  .rdata_i (r_data), .rresp_i(r_resp)
+      .AWVALID(aw_valid), .AWREADY(aw_ready), .AWADDR(aw_addr),
+      .WVALID (w_valid),  .WREADY (w_ready),  .WDATA (w_data), .WSTRB(w_strb),
+      .BVALID (b_valid),  .BREADY (b_ready),  .BRESP (b_resp),
+      .ARVALID(ar_valid), .ARREADY(ar_ready), .ARADDR(ar_addr),
+      .RVALID (r_valid),  .RREADY (r_ready),  .RDATA (r_data), .RRESP(r_resp)
   );
 
   // Three slave ports. Only the RAM exists this week; UART and timer arrive in
@@ -130,17 +130,17 @@ module cpu #(
       .clk_i(clk_i),
       .rst_i(rst_i),
 
-      .m_awvalid_i(aw_valid), .m_awready_o(aw_ready), .m_awaddr_i(aw_addr),
-      .m_wvalid_i (w_valid),  .m_wready_o (w_ready),  .m_wdata_i (w_data), .m_wstrb_i(w_strb),
-      .m_bvalid_o (b_valid),  .m_bready_i (b_ready),  .m_bresp_o (b_resp),
-      .m_arvalid_i(ar_valid), .m_arready_o(ar_ready), .m_araddr_i(ar_addr),
-      .m_rvalid_o (r_valid),  .m_rready_i (r_ready),  .m_rdata_o (r_data), .m_rresp_o(r_resp),
+      .M_AWVALID(aw_valid), .M_AWREADY(aw_ready), .M_AWADDR(aw_addr),
+      .M_WVALID (w_valid),  .M_WREADY (w_ready),  .M_WDATA (w_data), .M_WSTRB(w_strb),
+      .M_BVALID (b_valid),  .M_BREADY (b_ready),  .M_BRESP (b_resp),
+      .M_ARVALID(ar_valid), .M_ARREADY(ar_ready), .M_ARADDR(ar_addr),
+      .M_RVALID (r_valid),  .M_RREADY (r_ready),  .M_RDATA (r_data), .M_RRESP(r_resp),
 
-      .s_awvalid_o(s_awvalid), .s_awready_i(s_awready), .s_awaddr_o(s_awaddr),
-      .s_wvalid_o (s_wvalid),  .s_wready_i (s_wready),  .s_wdata_o (s_wdata), .s_wstrb_o(s_wstrb),
-      .s_bvalid_i (s_bvalid),  .s_bready_o (s_bready),
-      .s_arvalid_o(s_arvalid), .s_arready_i(s_arready), .s_araddr_o(s_araddr),
-      .s_rvalid_i (s_rvalid),  .s_rready_o (s_rready),  .s_rdata_i (s_rdata)
+      .S_AWVALID(s_awvalid), .S_AWREADY(s_awready), .S_AWADDR(s_awaddr),
+      .S_WVALID (s_wvalid),  .S_WREADY (s_wready),  .S_WDATA (s_wdata), .S_WSTRB(s_wstrb),
+      .S_BVALID (s_bvalid),  .S_BREADY (s_bready),
+      .S_ARVALID(s_arvalid), .S_ARREADY(s_arready), .S_ARADDR(s_araddr),
+      .S_RVALID (s_rvalid),  .S_RREADY (s_rready),  .S_RDATA (s_rdata)
   );
 
   // The xbar reports OKAY on the master side regardless, so these are only
@@ -155,12 +155,12 @@ module cpu #(
       .clk_i(clk_i),
       .rst_i(rst_i),
 
-      .awvalid_i(s_awvalid[0]), .awready_o(s_awready[0]), .awaddr_i(s_awaddr),
-      .wvalid_i (s_wvalid[0]),  .wready_o (s_wready[0]),  .wdata_i (s_wdata), .wstrb_i(s_wstrb),
-      .bvalid_o (s_bvalid[0]),  .bready_i (s_bready[0]),  .bresp_o (ram_bresp),
-      .arvalid_i(s_arvalid[0]), .arready_o(s_arready[0]), .araddr_i(s_araddr),
-      .rvalid_o (s_rvalid[0]),  .rready_i (s_rready[0]),  .rdata_o (s_rdata[XLEN-1:0]),
-      .rresp_o  (ram_rresp)
+      .AWVALID(s_awvalid[0]), .AWREADY(s_awready[0]), .AWADDR(s_awaddr),
+      .WVALID (s_wvalid[0]),  .WREADY (s_wready[0]),  .WDATA (s_wdata), .WSTRB(s_wstrb),
+      .BVALID (s_bvalid[0]),  .BREADY (s_bready[0]),  .BRESP (ram_bresp),
+      .ARVALID(s_arvalid[0]), .ARREADY(s_arready[0]), .ARADDR(s_araddr),
+      .RVALID (s_rvalid[0]),  .RREADY (s_rready[0]),  .RDATA (s_rdata[XLEN-1:0]),
+      .RRESP  (ram_rresp)
   );
 
   // -------------------------------------------------------------------------
@@ -177,12 +177,12 @@ module cpu #(
       .clk_i(clk_i),
       .rst_i(rst_i),
 
-      .awvalid_i(s_awvalid[1]), .awready_o(s_awready[1]), .awaddr_i(s_awaddr),
-      .wvalid_i (s_wvalid[1]),  .wready_o (s_wready[1]),  .wdata_i (s_wdata), .wstrb_i(s_wstrb),
-      .bvalid_o (s_bvalid[1]),  .bready_i (s_bready[1]),  .bresp_o (uart_bresp),
-      .arvalid_i(s_arvalid[1]), .arready_o(s_arready[1]), .araddr_i(s_araddr),
-      .rvalid_o (s_rvalid[1]),  .rready_i (s_rready[1]),  .rdata_o (s_rdata[XLEN*2-1:XLEN]),
-      .rresp_o  (uart_rresp),
+      .AWVALID(s_awvalid[1]), .AWREADY(s_awready[1]), .AWADDR(s_awaddr),
+      .WVALID (s_wvalid[1]),  .WREADY (s_wready[1]),  .WDATA (s_wdata), .WSTRB(s_wstrb),
+      .BVALID (s_bvalid[1]),  .BREADY (s_bready[1]),  .BRESP (uart_bresp),
+      .ARVALID(s_arvalid[1]), .ARREADY(s_arready[1]), .ARADDR(s_araddr),
+      .RVALID (s_rvalid[1]),  .RREADY (s_rready[1]),  .RDATA (s_rdata[XLEN*2-1:XLEN]),
+      .RRESP  (uart_rresp),
 
       // The testbench reads these directly; a real chip would drive a pin.
       .tx_valid_o(uart_tx_valid), .tx_data_o(uart_tx_data)
@@ -194,12 +194,12 @@ module cpu #(
       .clk_i(clk_i),
       .rst_i(rst_i),
 
-      .awvalid_i(s_awvalid[2]), .awready_o(s_awready[2]), .awaddr_i(s_awaddr),
-      .wvalid_i (s_wvalid[2]),  .wready_o (s_wready[2]),  .wdata_i (s_wdata), .wstrb_i(s_wstrb),
-      .bvalid_o (s_bvalid[2]),  .bready_i (s_bready[2]),  .bresp_o (timer_bresp),
-      .arvalid_i(s_arvalid[2]), .arready_o(s_arready[2]), .araddr_i(s_araddr),
-      .rvalid_o (s_rvalid[2]),  .rready_i (s_rready[2]),  .rdata_o (s_rdata[XLEN*3-1:XLEN*2]),
-      .rresp_o  (timer_rresp),
+      .AWVALID(s_awvalid[2]), .AWREADY(s_awready[2]), .AWADDR(s_awaddr),
+      .WVALID (s_wvalid[2]),  .WREADY (s_wready[2]),  .WDATA (s_wdata), .WSTRB(s_wstrb),
+      .BVALID (s_bvalid[2]),  .BREADY (s_bready[2]),  .BRESP (timer_bresp),
+      .ARVALID(s_arvalid[2]), .ARREADY(s_arready[2]), .ARADDR(s_araddr),
+      .RVALID (s_rvalid[2]),  .RREADY (s_rready[2]),  .RDATA (s_rdata[XLEN*3-1:XLEN*2]),
+      .RRESP  (timer_rresp),
 
       .mtip_o(mtip)
   );

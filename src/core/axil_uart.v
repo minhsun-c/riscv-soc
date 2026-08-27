@@ -32,67 +32,67 @@ module axil_uart #(
     input clk_i,
     input rst_i,
 
-    input             awvalid_i,
-    output            awready_o,
-    input  [XLEN-1:0] awaddr_i,
+    input             AWVALID,
+    output            AWREADY,
+    input  [XLEN-1:0] AWADDR,
 
-    input             wvalid_i,
-    output            wready_o,
-    input  [XLEN-1:0] wdata_i,
-    input  [     3:0] wstrb_i,
+    input             WVALID,
+    output            WREADY,
+    input  [XLEN-1:0] WDATA,
+    input  [     3:0] WSTRB,
 
-    output reg       bvalid_o,
-    input            bready_i,
-    output     [1:0] bresp_o,
+    output reg       BVALID,
+    input            BREADY,
+    output     [1:0] BRESP,
 
-    input             arvalid_i,
-    output            arready_o,
-    input  [XLEN-1:0] araddr_i,
+    input             ARVALID,
+    output            ARREADY,
+    input  [XLEN-1:0] ARADDR,
 
-    output reg            rvalid_o,
-    input                 rready_i,
-    output     [XLEN-1:0] rdata_o,
-    output     [     1:0] rresp_o,
+    output reg            RVALID,
+    input                 RREADY,
+    output     [XLEN-1:0] RDATA,
+    output     [     1:0] RRESP,
 
     // Watched by the testbench. A real design would drive a pin.
     output reg           tx_valid_o  /* verilator public */,
     output reg [    7:0] tx_data_o  /* verilator public */
 );
 
-  assign bresp_o = 2'b00;
-  assign rresp_o = 2'b00;
-  assign rdata_o = {XLEN{1'b0}};
+  assign BRESP = 2'b00;
+  assign RRESP = 2'b00;
+  assign RDATA = {XLEN{1'b0}};
 
   reg aw_taken;
 
-  assign awready_o = !aw_taken && !bvalid_o;
-  assign wready_o  = aw_taken;
-  assign arready_o = !rvalid_o;
+  assign AWREADY = !aw_taken && !BVALID;
+  assign WREADY  = aw_taken;
+  assign ARREADY = !RVALID;
 
   always @(posedge clk_i) begin
     if (rst_i) begin
       aw_taken   <= 1'b0;
-      bvalid_o   <= 1'b0;
-      rvalid_o   <= 1'b0;
+      BVALID   <= 1'b0;
+      RVALID   <= 1'b0;
       tx_valid_o <= 1'b0;
       tx_data_o  <= 8'b0;
     end else begin
       // A character is announced for exactly one cycle.
       tx_valid_o <= 1'b0;
 
-      if (awvalid_i && awready_o) aw_taken <= 1'b1;
-      if (wvalid_i && wready_o) begin
-        if (wstrb_i[0]) begin
-          tx_data_o  <= wdata_i[7:0];
+      if (AWVALID && AWREADY) aw_taken <= 1'b1;
+      if (WVALID && WREADY) begin
+        if (WSTRB[0]) begin
+          tx_data_o  <= WDATA[7:0];
           tx_valid_o <= 1'b1;
         end
         aw_taken <= 1'b0;
-        bvalid_o <= 1'b1;
+        BVALID <= 1'b1;
       end
-      if (bvalid_o && bready_i) bvalid_o <= 1'b0;
+      if (BVALID && BREADY) BVALID <= 1'b0;
 
-      if (arvalid_i && arready_o) rvalid_o <= 1'b1;
-      else if (rvalid_o && rready_i) rvalid_o <= 1'b0;
+      if (ARVALID && ARREADY) RVALID <= 1'b1;
+      else if (RVALID && RREADY) RVALID <= 1'b0;
     end
   end
 

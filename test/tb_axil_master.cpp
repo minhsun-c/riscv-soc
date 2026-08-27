@@ -27,43 +27,43 @@ struct FakeSlave {
     // Drive the slave-side inputs for this cycle, from state only.
     void drive(Vaxil_master *dut)
     {
-        dut->awready_i = !aw_taken && (b_wait < 0);
-        dut->wready_i = aw_taken;            // data only after the address
-        dut->arready_i = (r_wait < 0);
-        dut->bvalid_i = (b_wait == 0);
-        dut->rvalid_i = (r_wait == 0);
-        dut->rdata_i = r_data;
-        dut->bresp_i = 0;
-        dut->rresp_i = 0;
+        dut->AWREADY = !aw_taken && (b_wait < 0);
+        dut->WREADY = aw_taken;            // data only after the address
+        dut->ARREADY = (r_wait < 0);
+        dut->BVALID = (b_wait == 0);
+        dut->RVALID = (r_wait == 0);
+        dut->RDATA = r_data;
+        dut->BRESP = 0;
+        dut->RRESP = 0;
     }
 
     // Apply this cycle's handshakes, after eval.
     void settle(Vaxil_master *dut)
     {
-        if (dut->awvalid_o && dut->awready_i) {
+        if (dut->AWVALID && dut->AWREADY) {
             aw_taken = true;
-            aw_addr = dut->awaddr_o;
+            aw_addr = dut->AWADDR;
         }
-        if (dut->wvalid_o && dut->wready_i) {
+        if (dut->WVALID && dut->WREADY) {
             uint32_t idx = (aw_addr >> 2) & 63;
             for (int i = 0; i < 4; i++)
-                if (dut->wstrb_o & (1 << i))
+                if (dut->WSTRB & (1 << i))
                     mem[idx] = (mem[idx] & ~(0xFFu << (8 * i)))
-                               | (dut->wdata_o & (0xFFu << (8 * i)));
+                               | (dut->WDATA & (0xFFu << (8 * i)));
             aw_taken = false;
             b_wait = 1;
         } else if (b_wait > 0) {
             b_wait--;
-        } else if (b_wait == 0 && dut->bready_o) {
+        } else if (b_wait == 0 && dut->BREADY) {
             b_wait = -1;
         }
 
-        if (dut->arvalid_o && dut->arready_i) {
-            r_data = mem[(dut->araddr_o >> 2) & 63];
+        if (dut->ARVALID && dut->ARREADY) {
+            r_data = mem[(dut->ARADDR >> 2) & 63];
             r_wait = 1;
         } else if (r_wait > 0) {
             r_wait--;
-        } else if (r_wait == 0 && dut->rready_o) {
+        } else if (r_wait == 0 && dut->RREADY) {
             r_wait = -1;
         }
     }
@@ -75,11 +75,11 @@ static void cycle(Vaxil_master *dut)
 {
     slave.drive(dut);
     dut->eval();
-    axi.cycle(dut->awvalid_o, dut->awready_i, dut->awaddr_o,
-              dut->wvalid_o, dut->wready_i, dut->wdata_o, dut->wstrb_o,
-              dut->bvalid_i, dut->bready_o,
-              dut->arvalid_o, dut->arready_i, dut->araddr_o,
-              dut->rvalid_i, dut->rready_o, dut->rdata_i);
+    axi.cycle(dut->AWVALID, dut->AWREADY, dut->AWADDR,
+              dut->WVALID, dut->WREADY, dut->WDATA, dut->WSTRB,
+              dut->BVALID, dut->BREADY,
+              dut->ARVALID, dut->ARREADY, dut->ARADDR,
+              dut->RVALID, dut->RREADY, dut->RDATA);
     slave.settle(dut);
     tick(dut);
 }
@@ -103,11 +103,11 @@ static uint32_t transact(Vaxil_master *dut, uint32_t addr, uint32_t data,
         dut->eval();
         bool done = dut->rvalid_o;
         if (done) got = dut->rdata_o;
-        axi.cycle(dut->awvalid_o, dut->awready_i, dut->awaddr_o,
-                  dut->wvalid_o, dut->wready_i, dut->wdata_o, dut->wstrb_o,
-                  dut->bvalid_i, dut->bready_o,
-                  dut->arvalid_o, dut->arready_i, dut->araddr_o,
-                  dut->rvalid_i, dut->rready_o, dut->rdata_i);
+        axi.cycle(dut->AWVALID, dut->AWREADY, dut->AWADDR,
+                  dut->WVALID, dut->WREADY, dut->WDATA, dut->WSTRB,
+                  dut->BVALID, dut->BREADY,
+                  dut->ARVALID, dut->ARREADY, dut->ARADDR,
+                  dut->RVALID, dut->RREADY, dut->RDATA);
         slave.settle(dut);
         tick(dut);
         if (done) break;

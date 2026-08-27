@@ -34,40 +34,40 @@ module axil_xbar #(
     input rst_i,
 
     // --- Upstream (from axil_master) ---
-    input             m_awvalid_i,
-    output            m_awready_o,
-    input  [XLEN-1:0] m_awaddr_i,
-    input             m_wvalid_i,
-    output            m_wready_o,
-    input  [XLEN-1:0] m_wdata_i,
-    input  [     3:0] m_wstrb_i,
-    output            m_bvalid_o,
-    input             m_bready_i,
-    output [     1:0] m_bresp_o,
-    input             m_arvalid_i,
-    output            m_arready_o,
-    input  [XLEN-1:0] m_araddr_i,
-    output            m_rvalid_o,
-    input             m_rready_i,
-    output [XLEN-1:0] m_rdata_o,
-    output [     1:0] m_rresp_o,
+    input             M_AWVALID,
+    output            M_AWREADY,
+    input  [XLEN-1:0] M_AWADDR,
+    input             M_WVALID,
+    output            M_WREADY,
+    input  [XLEN-1:0] M_WDATA,
+    input  [     3:0] M_WSTRB,
+    output            M_BVALID,
+    input             M_BREADY,
+    output [     1:0] M_BRESP,
+    input             M_ARVALID,
+    output            M_ARREADY,
+    input  [XLEN-1:0] M_ARADDR,
+    output            M_RVALID,
+    input             M_RREADY,
+    output [XLEN-1:0] M_RDATA,
+    output [     1:0] M_RRESP,
 
     // --- Downstream: 3 slaves, flattened ---
-    output [      2:0] s_awvalid_o,
-    input  [      2:0] s_awready_i,
-    output [XLEN-1:0] s_awaddr_o,
-    output [      2:0] s_wvalid_o,
-    input  [      2:0] s_wready_i,
-    output [XLEN-1:0] s_wdata_o,
-    output [      3:0] s_wstrb_o,
-    input  [      2:0] s_bvalid_i,
-    output [      2:0] s_bready_o,
-    output [      2:0] s_arvalid_o,
-    input  [      2:0] s_arready_i,
-    output [XLEN-1:0] s_araddr_o,
-    input  [      2:0] s_rvalid_i,
-    output [      2:0] s_rready_o,
-    input  [XLEN*3-1:0] s_rdata_i
+    output [      2:0] S_AWVALID,
+    input  [      2:0] S_AWREADY,
+    output [XLEN-1:0] S_AWADDR,
+    output [      2:0] S_WVALID,
+    input  [      2:0] S_WREADY,
+    output [XLEN-1:0] S_WDATA,
+    output [      3:0] S_WSTRB,
+    input  [      2:0] S_BVALID,
+    output [      2:0] S_BREADY,
+    output [      2:0] S_ARVALID,
+    input  [      2:0] S_ARREADY,
+    output [XLEN-1:0] S_ARADDR,
+    input  [      2:0] S_RVALID,
+    output [      2:0] S_RREADY,
+    input  [XLEN*3-1:0] S_RDATA
 );
 
   `include "memmap.vh"
@@ -82,8 +82,8 @@ module axil_xbar #(
     end
   endfunction
 
-  wire [1:0] aw_sel = decode(m_awaddr_i);
-  wire [1:0] ar_sel = decode(m_araddr_i);
+  wire [1:0] aw_sel = decode(M_AWADDR);
+  wire [1:0] ar_sel = decode(M_ARADDR);
 
   // --- Latch the choice so the response can find its way home ---
   reg [1:0] b_sel, r_sel;
@@ -99,35 +99,35 @@ module axil_xbar #(
       b_sel  <= SLV_NONE;
       r_sel  <= SLV_NONE;
     end else begin
-      if (m_awvalid_i && m_awready_o) begin
+      if (M_AWVALID && M_AWREADY) begin
         b_sel  <= aw_sel;
         b_busy <= 1'b1;
-      end else if (m_bvalid_o && m_bready_i) begin
+      end else if (M_BVALID && M_BREADY) begin
         b_busy <= 1'b0;
       end
-      if (m_arvalid_i && m_arready_o) begin
+      if (M_ARVALID && M_ARREADY) begin
         r_sel  <= ar_sel;
         r_busy <= 1'b1;
-      end else if (m_rvalid_o && m_rready_i) begin
+      end else if (M_RVALID && M_RREADY) begin
         r_busy <= 1'b0;
       end
     end
   end
 
   // --- Forward: only the selected slave sees VALID ---
-  assign s_awaddr_o = m_awaddr_i;
-  assign s_araddr_o = m_araddr_i;
-  assign s_wdata_o  = m_wdata_i;
-  assign s_wstrb_o  = m_wstrb_i;
+  assign S_AWADDR = M_AWADDR;
+  assign S_ARADDR = M_ARADDR;
+  assign S_WDATA  = M_WDATA;
+  assign S_WSTRB  = M_WSTRB;
 
   genvar i;
   generate
     for (i = 0; i < 3; i = i + 1) begin : g_fanout
-      assign s_awvalid_o[i] = m_awvalid_i && (aw_sel == i[1:0]);
-      assign s_wvalid_o[i]  = m_wvalid_i && (b_route == i[1:0]);
-      assign s_arvalid_o[i] = m_arvalid_i && (ar_sel == i[1:0]);
-      assign s_bready_o[i]  = m_bready_i && (b_route == i[1:0]);
-      assign s_rready_o[i]  = m_rready_i && (r_route == i[1:0]);
+      assign S_AWVALID[i] = M_AWVALID && (aw_sel == i[1:0]);
+      assign S_WVALID[i]  = M_WVALID && (b_route == i[1:0]);
+      assign S_ARVALID[i] = M_ARVALID && (ar_sel == i[1:0]);
+      assign S_BREADY[i]  = M_BREADY && (b_route == i[1:0]);
+      assign S_RREADY[i]  = M_RREADY && (r_route == i[1:0]);
     end
   endgenerate
 
@@ -137,16 +137,16 @@ module axil_xbar #(
   wire aw_none = (aw_sel == SLV_NONE);
   wire ar_none = (ar_sel == SLV_NONE);
 
-  assign m_awready_o = aw_none ? 1'b1 : s_awready_i[aw_sel];
-  assign m_wready_o  = (b_route == SLV_NONE) ? 1'b1 : s_wready_i[b_route];
-  assign m_bvalid_o  = (b_route == SLV_NONE) ? b_busy : s_bvalid_i[b_route];
-  assign m_bresp_o   = 2'b00;
+  assign M_AWREADY = aw_none ? 1'b1 : S_AWREADY[aw_sel];
+  assign M_WREADY  = (b_route == SLV_NONE) ? 1'b1 : S_WREADY[b_route];
+  assign M_BVALID  = (b_route == SLV_NONE) ? b_busy : S_BVALID[b_route];
+  assign M_BRESP   = 2'b00;
 
-  assign m_arready_o = ar_none ? 1'b1 : s_arready_i[ar_sel];
-  assign m_rvalid_o  = (r_route == SLV_NONE) ? r_busy : s_rvalid_i[r_route];
-  assign m_rresp_o   = 2'b00;
-  assign m_rdata_o   = (r_route == SLV_NONE) ? {XLEN{1'b0}}
-                                             : s_rdata_i[XLEN*r_route+:XLEN];
+  assign M_ARREADY = ar_none ? 1'b1 : S_ARREADY[ar_sel];
+  assign M_RVALID  = (r_route == SLV_NONE) ? r_busy : S_RVALID[r_route];
+  assign M_RRESP   = 2'b00;
+  assign M_RDATA   = (r_route == SLV_NONE) ? {XLEN{1'b0}}
+                                             : S_RDATA[XLEN*r_route+:XLEN];
 
 endmodule
 

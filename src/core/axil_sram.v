@@ -26,76 +26,76 @@ module axil_sram #(
     input clk_i,
     input rst_i,
 
-    input             awvalid_i,
-    output            awready_o,
-    input  [XLEN-1:0] awaddr_i,
+    input             AWVALID,
+    output            AWREADY,
+    input  [XLEN-1:0] AWADDR,
 
-    input             wvalid_i,
-    output            wready_o,
-    input  [XLEN-1:0] wdata_i,
-    input  [     3:0] wstrb_i,
+    input             WVALID,
+    output            WREADY,
+    input  [XLEN-1:0] WDATA,
+    input  [     3:0] WSTRB,
 
-    output reg       bvalid_o,
-    input            bready_i,
-    output     [1:0] bresp_o,
+    output reg       BVALID,
+    input            BREADY,
+    output     [1:0] BRESP,
 
-    input             arvalid_i,
-    output            arready_o,
-    input  [XLEN-1:0] araddr_i,
+    input             ARVALID,
+    output            ARREADY,
+    input  [XLEN-1:0] ARADDR,
 
-    output reg            rvalid_o,
-    input                 rready_i,
-    output reg [XLEN-1:0] rdata_o,
-    output     [     1:0] rresp_o
+    output reg            RVALID,
+    input                 RREADY,
+    output reg [XLEN-1:0] RDATA,
+    output     [     1:0] RRESP
 );
 
   reg [XLEN-1:0] mem[0:NUM_ENTRIES-1]  /* verilator public */;
 
   // OKAY on everything. A slave that can report SLVERR needs somewhere to
   // report it to, and this core has no bus-error exception yet.
-  assign bresp_o = 2'b00;
-  assign rresp_o = 2'b00;
+  assign BRESP = 2'b00;
+  assign RRESP = 2'b00;
 
   // --- Write: take the address, then the data ---
   reg            aw_taken;
   reg [ADDR_W-1:0] aw_addr;
 
-  assign awready_o = !aw_taken && !bvalid_o;
-  assign wready_o  = aw_taken;  // data only after the address, on purpose
+  assign AWREADY = !aw_taken && !BVALID;
+  assign WREADY  = aw_taken;  // data only after the address, on purpose
 
   integer b;
   always @(posedge clk_i) begin
     if (rst_i) begin
       aw_taken <= 1'b0;
-      bvalid_o <= 1'b0;
+      BVALID <= 1'b0;
     end else begin
-      if (awvalid_i && awready_o) begin
+      if (AWVALID && AWREADY) begin
         aw_taken <= 1'b1;
-        aw_addr  <= awaddr_i[ADDR_W+1:2];
+        aw_addr  <= AWADDR[ADDR_W+1:2];
       end
-      if (wvalid_i && wready_o) begin
+      if (WVALID && WREADY) begin
         for (b = 0; b < 4; b = b + 1) begin
-          if (wstrb_i[b]) mem[aw_addr][8*b+:8] <= wdata_i[8*b+:8];
+          if (WSTRB[b]) mem[aw_addr][8*b+:8] <= WDATA[8*b+:8];
         end
         aw_taken <= 1'b0;
-        bvalid_o <= 1'b1;
+        BVALID <= 1'b1;
       end
-      if (bvalid_o && bready_i) bvalid_o <= 1'b0;
+      if (BVALID && BREADY) BVALID <= 1'b0;
     end
   end
 
   // --- Read: take the address, answer next cycle ---
-  assign arready_o = !rvalid_o;
+  assign ARREADY = !RVALID;
 
   always @(posedge clk_i) begin
     if (rst_i) begin
-      rvalid_o <= 1'b0;
+      RVALID <= 1'b0;
     end else begin
-      if (arvalid_i && arready_o) begin
-        rdata_o  <= mem[araddr_i[ADDR_W+1:2]];
-        rvalid_o <= 1'b1;
-      end else if (rvalid_o && rready_i) begin
-        rvalid_o <= 1'b0;
+      if (ARVALID && ARREADY) begin
+        RDATA  <= mem[ARADDR[ADDR_W+1:2]];
+        RVALID <= 1'b1;
+      end else if (RVALID && RREADY) begin
+        RVALID <= 1'b0;
       end
     end
   end

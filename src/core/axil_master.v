@@ -48,31 +48,31 @@ module axil_master #(
     output [XLEN-1:0] rdata_o,
 
     // --- AXI4-Lite write address channel ---
-    output reg            awvalid_o,
-    input                 awready_i,
-    output     [XLEN-1:0] awaddr_o,
+    output reg            AWVALID,
+    input                 AWREADY,
+    output     [XLEN-1:0] AWADDR,
 
     // --- AXI4-Lite write data channel ---
-    output reg            wvalid_o,
-    input                 wready_i,
-    output     [XLEN-1:0] wdata_o,
-    output     [     3:0] wstrb_o,
+    output reg            WVALID,
+    input                 WREADY,
+    output     [XLEN-1:0] WDATA,
+    output     [     3:0] WSTRB,
 
     // --- AXI4-Lite write response channel ---
-    input        bvalid_i,
-    output       bready_o,
-    input  [1:0] bresp_i,
+    input        BVALID,
+    output       BREADY,
+    input  [1:0] BRESP,
 
     // --- AXI4-Lite read address channel ---
-    output reg            arvalid_o,
-    input                 arready_i,
-    output     [XLEN-1:0] araddr_o,
+    output reg            ARVALID,
+    input                 ARREADY,
+    output     [XLEN-1:0] ARADDR,
 
     // --- AXI4-Lite read data channel ---
-    input             rvalid_i,
-    output            rready_o,
-    input  [XLEN-1:0] rdata_i,
-    input  [     1:0] rresp_i
+    input             RVALID,
+    output            RREADY,
+    input  [XLEN-1:0] RDATA,
+    input  [     1:0] RRESP
 );
 
   localparam [1:0] S_IDLE = 2'd0, S_WRITE = 2'd1, S_READ = 2'd2;
@@ -82,27 +82,27 @@ module axil_master #(
   reg [     3:0] wstrb_q;
 
   // Payload is registered so it cannot change while VALID is high.
-  assign awaddr_o = addr_q;
-  assign araddr_o = addr_q;
-  assign wdata_o  = wdata_q;
-  assign wstrb_o  = wstrb_q;
+  assign AWADDR = addr_q;
+  assign ARADDR = addr_q;
+  assign WDATA  = wdata_q;
+  assign WSTRB  = wstrb_q;
 
   // Always able to accept a response. A master that can back-pressure B or R
   // is legal but buys nothing here -- the pipeline is stalled waiting anyway.
-  assign bready_o = 1'b1;
-  assign rready_o = 1'b1;
+  assign BREADY = 1'b1;
+  assign RREADY = 1'b1;
 
   // The core's port only accepts a new request when nothing is in flight.
   assign ready_o  = (state == S_IDLE);
-  assign rvalid_o = (state == S_READ && rvalid_i) || (state == S_WRITE && bvalid_i);
-  assign rdata_o  = rdata_i;
+  assign rvalid_o = (state == S_READ && RVALID) || (state == S_WRITE && BVALID);
+  assign rdata_o  = RDATA;
 
   always @(posedge clk_i) begin
     if (rst_i) begin
       state     <= S_IDLE;
-      awvalid_o <= 1'b0;
-      wvalid_o  <= 1'b0;
-      arvalid_o <= 1'b0;
+      AWVALID <= 1'b0;
+      WVALID  <= 1'b0;
+      ARVALID <= 1'b0;
       addr_q    <= {XLEN{1'b0}};
       wdata_q   <= {XLEN{1'b0}};
       wstrb_q   <= 4'b0;
@@ -116,11 +116,11 @@ module axil_master #(
             if (|wstrb_i) begin
               // A write raises both address and data channels at once. The
               // slave may take them in either order.
-              awvalid_o <= 1'b1;
-              wvalid_o  <= 1'b1;
+              AWVALID <= 1'b1;
+              WVALID  <= 1'b1;
               state     <= S_WRITE;
             end else begin
-              arvalid_o <= 1'b1;
+              ARVALID <= 1'b1;
               state     <= S_READ;
             end
           end
@@ -129,14 +129,14 @@ module axil_master #(
         S_WRITE: begin
           // Each channel drops its own VALID as soon as that channel's READY
           // has been seen, and not before.
-          if (awvalid_o && awready_i) awvalid_o <= 1'b0;
-          if (wvalid_o && wready_i) wvalid_o <= 1'b0;
-          if (bvalid_i) state <= S_IDLE;
+          if (AWVALID && AWREADY) AWVALID <= 1'b0;
+          if (WVALID && WREADY) WVALID <= 1'b0;
+          if (BVALID) state <= S_IDLE;
         end
 
         S_READ: begin
-          if (arvalid_o && arready_i) arvalid_o <= 1'b0;
-          if (rvalid_i) state <= S_IDLE;
+          if (ARVALID && ARREADY) ARVALID <= 1'b0;
+          if (RVALID) state <= S_IDLE;
         end
 
         default: state <= S_IDLE;

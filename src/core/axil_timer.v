@@ -38,33 +38,33 @@ module axil_timer #(
     input clk_i,
     input rst_i,
 
-    input             awvalid_i,
-    output            awready_o,
-    input  [XLEN-1:0] awaddr_i,
+    input             AWVALID,
+    output            AWREADY,
+    input  [XLEN-1:0] AWADDR,
 
-    input             wvalid_i,
-    output            wready_o,
-    input  [XLEN-1:0] wdata_i,
-    input  [     3:0] wstrb_i,
+    input             WVALID,
+    output            WREADY,
+    input  [XLEN-1:0] WDATA,
+    input  [     3:0] WSTRB,
 
-    output reg       bvalid_o,
-    input            bready_i,
-    output     [1:0] bresp_o,
+    output reg       BVALID,
+    input            BREADY,
+    output     [1:0] BRESP,
 
-    input             arvalid_i,
-    output            arready_o,
-    input  [XLEN-1:0] araddr_i,
+    input             ARVALID,
+    output            ARREADY,
+    input  [XLEN-1:0] ARADDR,
 
-    output reg            rvalid_o,
-    input                 rready_i,
-    output reg [XLEN-1:0] rdata_o,
-    output     [     1:0] rresp_o,
+    output reg            RVALID,
+    input                 RREADY,
+    output reg [XLEN-1:0] RDATA,
+    output     [     1:0] RRESP,
 
     output mtip_o
 );
 
-  assign bresp_o = 2'b00;
-  assign rresp_o = 2'b00;
+  assign BRESP = 2'b00;
+  assign RRESP = 2'b00;
 
   reg [XLEN-1:0] mtime  /* verilator public */;
   reg [XLEN-1:0] mtimecmp  /* verilator public */;
@@ -75,40 +75,40 @@ module axil_timer #(
   reg       aw_taken;
   reg [3:0] aw_off;
 
-  assign awready_o = !aw_taken && !bvalid_o;
-  assign wready_o  = aw_taken;
-  assign arready_o = !rvalid_o;
+  assign AWREADY = !aw_taken && !BVALID;
+  assign WREADY  = aw_taken;
+  assign ARREADY = !RVALID;
 
   always @(posedge clk_i) begin
     if (rst_i) begin
       mtime    <= {XLEN{1'b0}};
       mtimecmp <= {XLEN{1'b0}};
       aw_taken <= 1'b0;
-      bvalid_o <= 1'b0;
-      rvalid_o <= 1'b0;
+      BVALID <= 1'b0;
+      RVALID <= 1'b0;
       aw_off   <= 4'b0;
     end else begin
       mtime <= mtime + 32'd1;
 
-      if (awvalid_i && awready_o) begin
+      if (AWVALID && AWREADY) begin
         aw_taken <= 1'b1;
-        aw_off   <= awaddr_i[3:0];
+        aw_off   <= AWADDR[3:0];
       end
-      if (wvalid_i && wready_o) begin
+      if (WVALID && WREADY) begin
         // Only mtimecmp is writable. Writing mtime is legal in the spec but
         // this core has no use for it, and a timer software can rewind is a
         // debugging hazard.
-        if (aw_off[3]) mtimecmp <= wdata_i;
+        if (aw_off[3]) mtimecmp <= WDATA;
         aw_taken <= 1'b0;
-        bvalid_o <= 1'b1;
+        BVALID <= 1'b1;
       end
-      if (bvalid_o && bready_i) bvalid_o <= 1'b0;
+      if (BVALID && BREADY) BVALID <= 1'b0;
 
-      if (arvalid_i && arready_o) begin
-        rdata_o  <= araddr_i[3] ? mtimecmp : mtime;
-        rvalid_o <= 1'b1;
-      end else if (rvalid_o && rready_i) begin
-        rvalid_o <= 1'b0;
+      if (ARVALID && ARREADY) begin
+        RDATA  <= ARADDR[3] ? mtimecmp : mtime;
+        RVALID <= 1'b1;
+      end else if (RVALID && RREADY) begin
+        RVALID <= 1'b0;
       end
     end
   end
