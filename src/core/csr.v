@@ -87,8 +87,10 @@ module csr #(
   reg [XLEN-1:0] mepc  /* verilator public */;
   reg [XLEN-1:0] mcause  /* verilator public */;
   reg [XLEN-1:0] mtval  /* verilator public */;
-  reg [XLEN-1:0] mcycle  /* verilator public */;
-  reg [XLEN-1:0] minstret  /* verilator public */;
+  // The spec makes these 64 bits wide on every XLEN. On RV32 software reads
+  // them as two halves, which is where the torn-read problem comes from.
+  reg [63:0] mcycle  /* verilator public */;
+  reg [63:0] minstret  /* verilator public */;
 
   // mip is driven by hardware, not stored. A pending interrupt goes away
   // when the device stops asking, not when software writes a bit.
@@ -113,8 +115,10 @@ module csr #(
       CSR_MCAUSE:   rdata = mcause;
       CSR_MTVAL:    rdata = mtval;
       CSR_MIP:      rdata = mip;
-      CSR_MCYCLE:   rdata = mcycle;
-      CSR_MINSTRET: rdata = minstret;
+      CSR_MCYCLE:    rdata = mcycle[XLEN-1:0];
+      CSR_MCYCLEH:   rdata = mcycle[63:XLEN];
+      CSR_MINSTRET:  rdata = minstret[XLEN-1:0];
+      CSR_MINSTRETH: rdata = minstret[63:XLEN];
       default:      rdata = {XLEN{1'b0}};
     endcase
   end
@@ -143,13 +147,13 @@ module csr #(
       mepc     <= {XLEN{1'b0}};
       mcause   <= {XLEN{1'b0}};
       mtval    <= {XLEN{1'b0}};
-      mcycle   <= {XLEN{1'b0}};
-      minstret <= {XLEN{1'b0}};
+      mcycle   <= 64'd0;
+      minstret <= 64'd0;
     end else begin
       // Counters run regardless of what else is happening, which is the
       // only way they can measure it.
-      mcycle <= mcycle + 32'd1;
-      if (instret_i) minstret <= minstret + 32'd1;
+      mcycle <= mcycle + 64'd1;
+      if (instret_i) minstret <= minstret + 64'd1;
     end
 
     if (rst_i) begin

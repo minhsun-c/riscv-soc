@@ -14,8 +14,12 @@ localparam [11:0] CSR_MTVAL    = 12'h343;  // extra detail about the cause
 localparam [11:0] CSR_MIP      = 12'h344;  // which interrupts are pending
 
 // Hardware performance counters. Read-only here: they count, software reads.
-localparam [11:0] CSR_MCYCLE   = 12'hB00;  // cycles since reset
-localparam [11:0] CSR_MINSTRET = 12'hB02;  // instructions retired
+localparam [11:0] CSR_MCYCLE    = 12'hB00;  // cycles since reset, low 32
+localparam [11:0] CSR_MINSTRET  = 12'hB02;  // instructions retired, low 32
+// The counters are 64 bits wide. RV32 reaches the top half through these, and
+// reading both halves is not atomic -- see the software idiom in week 20.
+localparam [11:0] CSR_MCYCLEH   = 12'hB80;
+localparam [11:0] CSR_MINSTRETH = 12'hB82;
 
 // mstatus bit positions actually used here. The rest of the register reads 0.
 localparam integer MSTATUS_MIE  = 3;   // interrupts enabled now

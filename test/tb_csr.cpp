@@ -2,6 +2,8 @@
 #include <iostream>
 #include <string>
 #include "Vcsr.h"
+#include "Vcsr_csr.h"
+#include "Vcsr___024root.h"
 #include "checker.h"
 
 #define MODULE_HAS_CLK 1
@@ -18,6 +20,8 @@ static const uint8_t OP_RWI = 0b101, OP_RSI = 0b110, OP_RCI = 0b111;
 static const uint16_t MSTATUS = 0x300, MTVEC = 0x305, MSCRATCH = 0x340;
 static const uint16_t MEPC = 0x341, MCAUSE = 0x342;
 static const uint16_t UNIMPL = 0xF14;  // mhartid: not implemented here
+static const uint16_t MCYCLE = 0xB00, MINSTRET = 0xB02;
+static const uint16_t MCYCLEH = 0xB80, MINSTRETH = 0xB82;
 
 static uint32_t read_csr(Vcsr *dut, uint16_t addr)
 {
@@ -109,6 +113,33 @@ int main(int argc, char **argv)
     csr_access(dut, UNIMPL, OP_RW, 0x12345678);
     EXPECT_EQ(read_csr(dut, UNIMPL), 0u, "17. Unimplemented CSR still reads 0");
     EXPECT_EQ(read_csr(dut, MSCRATCH), 0xAAAA00FFu, "18. ... and did not alias onto a real one");
+
+    // --- 19-21. mcycle counts cycles, minstret counts only retirements ---
+    // A counter that stopped while something interesting was happening could
+    // not measure the interesting thing, so mcycle has no enable at all.
+    dut->instret_i = 0;
+    uint32_t c0 = read_csr(dut, MCYCLE);
+    uint32_t i0 = read_csr(dut, MINSTRET);
+    for (int k = 0; k < 5; k++)
+        tick(dut);
+    EXPECT_EQ(read_csr(dut, MCYCLE) - c0, 5u, "19. mcycle advanced one per cycle");
+    EXPECT_EQ(read_csr(dut, MINSTRET) - i0, 0u, "20. minstret stayed put with nothing retiring");
+
+    dut->instret_i = 1;
+    for (int k = 0; k < 4; k++)
+        tick(dut);
+    dut->instret_i = 0;
+    EXPECT_EQ(read_csr(dut, MINSTRET) - i0, 4u, "21. minstret counted the four retirements");
+
+    // --- 22-24. The counters are 64 bits, reached through two CSRs ---
+    // Ticking to 2^32 is not an option, so the low half is planted just short
+    // of the wrap and the carry is watched cross into mcycleh.
+    EXPECT_EQ(read_csr(dut, MCYCLEH), 0u, "22. mcycleh is still zero this early");
+
+    dut->rootp->csr->mcycle = 0xFFFFFFFFull;
+    tick(dut);
+    EXPECT_EQ(read_csr(dut, MCYCLE), 0u, "23. the low half wrapped to zero");
+    EXPECT_EQ(read_csr(dut, MCYCLEH), 1u, "24. ... and carried into mcycleh");
 
     close_vcd();
     delete dut;
