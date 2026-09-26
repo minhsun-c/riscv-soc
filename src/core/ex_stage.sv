@@ -73,7 +73,7 @@ module ex_stage #(
     output            redirect_o,
     output [XLEN-1:0] redirect_pc_o
 );
-  `include "fwdsel.vh"
+  import fwdsel_pkg::*;
 
   // --- Forwarding Multiplexers ---
   // rs1_data_i / rs2_data_i are what id_ex latched from the register file. If a

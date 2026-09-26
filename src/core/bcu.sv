@@ -27,7 +27,7 @@ module bcu #(
     output            jb_taken_o
 );
 
-  `include "branchop.vh"
+  import branchop_pkg::*;
 
   // Helper wire: In SLT/SLTU mode, the ALU result LSB is the "Less Than" flag.
   logic alu_less_than;

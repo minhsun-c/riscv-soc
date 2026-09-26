@@ -120,7 +120,7 @@ module id_ex #(
     output logic            mem_wen_ex_o,
     output logic [     2:0] mem_op_ex_o
 );
-  `include "branchop.vh"
+  import branchop_pkg::*;
 
   always_ff @(posedge clk_i) begin
     if (rst_i || flush_i) begin

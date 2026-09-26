@@ -177,7 +177,7 @@ module id_stage #(
   // The address is a plain slice of the instruction. It deliberately does not
   // go through imm_gen: imm_gen is busy producing the *operand* for the
   // immediate forms, and one module cannot hand out two different fields.
-  `include "csrop.vh"
+  import csrop_pkg::*;
 
   assign csr_addr_o = inst_i[31:20];
   assign csr_op_o = ctrl_csr_op;
@@ -197,8 +197,8 @@ module id_stage #(
   assign csr_wen_o = ctrl_csr_wen && !(csr_is_set_clear && (csr_operand_o == {XLEN{1'b0}}));
 
   // --- Exceptions visible from the instruction alone ---
-  `include "excause.vh"
-  `include "opcode.vh"
+  import excause_pkg::*;
+  import opcode_pkg::*;
 
   // SYSTEM with funct3 = 000 is not a CSR access. Which privileged instruction
   // it is comes from the immediate field, and anything else there is illegal.

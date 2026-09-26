@@ -48,15 +48,15 @@ module axil_master #(
     output [XLEN-1:0] rdata_o,
 
     // --- AXI4-Lite write address channel ---
-    output reg            AWVALID,
-    input                 AWREADY,
-    output     [XLEN-1:0] AWADDR,
+    output logic            AWVALID,
+    input                   AWREADY,
+    output       [XLEN-1:0] AWADDR,
 
     // --- AXI4-Lite write data channel ---
-    output reg            WVALID,
-    input                 WREADY,
-    output     [XLEN-1:0] WDATA,
-    output     [     3:0] WSTRB,
+    output logic            WVALID,
+    input                   WREADY,
+    output       [XLEN-1:0] WDATA,
+    output       [     3:0] WSTRB,
 
     // --- AXI4-Lite write response channel ---
     input        BVALID,
@@ -64,9 +64,9 @@ module axil_master #(
     input  [1:0] BRESP,
 
     // --- AXI4-Lite read address channel ---
-    output reg            ARVALID,
-    input                 ARREADY,
-    output     [XLEN-1:0] ARADDR,
+    output logic            ARVALID,
+    input                   ARREADY,
+    output       [XLEN-1:0] ARADDR,
 
     // --- AXI4-Lite read data channel ---
     input             RVALID,
@@ -77,15 +77,15 @@ module axil_master #(
 
   localparam [1:0] S_IDLE = 2'd0, S_WRITE = 2'd1, S_READ = 2'd2;
 
-  reg [1:0] state;
-  reg [XLEN-1:0] addr_q, wdata_q;
-  reg [     3:0] wstrb_q;
+  logic [1:0] state;
+  logic [XLEN-1:0] addr_q, wdata_q;
+  logic [3:0] wstrb_q;
 
   // Payload is registered so it cannot change while VALID is high.
   assign AWADDR = addr_q;
   assign ARADDR = addr_q;
-  assign WDATA  = wdata_q;
-  assign WSTRB  = wstrb_q;
+  assign WDATA = wdata_q;
+  assign WSTRB = wstrb_q;
 
   // Always able to accept a response. A master that can back-pressure B or R
   // is legal but buys nothing here -- the pipeline is stalled waiting anyway.
@@ -93,19 +93,19 @@ module axil_master #(
   assign RREADY = 1'b1;
 
   // The core's port only accepts a new request when nothing is in flight.
-  assign ready_o  = (state == S_IDLE);
+  assign ready_o = (state == S_IDLE);
   assign rvalid_o = (state == S_READ && RVALID) || (state == S_WRITE && BVALID);
-  assign rdata_o  = RDATA;
+  assign rdata_o = RDATA;
 
-  always @(posedge clk_i) begin
+  always_ff @(posedge clk_i) begin
     if (rst_i) begin
-      state     <= S_IDLE;
+      state   <= S_IDLE;
       AWVALID <= 1'b0;
       WVALID  <= 1'b0;
       ARVALID <= 1'b0;
-      addr_q    <= {XLEN{1'b0}};
-      wdata_q   <= {XLEN{1'b0}};
-      wstrb_q   <= 4'b0;
+      addr_q  <= {XLEN{1'b0}};
+      wdata_q <= {XLEN{1'b0}};
+      wstrb_q <= 4'b0;
     end else begin
       case (state)
         S_IDLE: begin
@@ -118,10 +118,10 @@ module axil_master #(
               // slave may take them in either order.
               AWVALID <= 1'b1;
               WVALID  <= 1'b1;
-              state     <= S_WRITE;
+              state   <= S_WRITE;
             end else begin
               ARVALID <= 1'b1;
-              state     <= S_READ;
+              state   <= S_READ;
             end
           end
         end

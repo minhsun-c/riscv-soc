@@ -45,7 +45,7 @@ module hdu (
     output logic stall_o
 );
 
-  `include "rdsel.vh"
+  import rdsel_pkg::*;
 
   // Two writeback sources produce their value too late for the next
   // instruction to forward from MEM:

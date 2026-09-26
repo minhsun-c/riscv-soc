@@ -33,7 +33,7 @@ module alu #(
     output logic [XLEN-1 : 0] result_o
 );
 
-  `include "aluop.vh"
+  import aluop_pkg::*;
 
   logic [XLEN-1:0] result_srl;
   logic [XLEN-1:0] result_sra;

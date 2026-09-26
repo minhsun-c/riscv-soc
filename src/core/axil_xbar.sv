@@ -23,9 +23,6 @@
  */
 
 /* verilator lint_off UNUSEDSIGNAL */
-// memmap.vh also declares the peripheral base addresses, which only week
-// 20's devices read.
-/* verilator lint_off UNUSEDPARAM */
 
 module axil_xbar #(
     parameter XLEN = 32
@@ -53,46 +50,49 @@ module axil_xbar #(
     output [     1:0] M_RRESP,
 
     // --- Downstream: 3 slaves, flattened ---
-    output [      2:0] S_AWVALID,
-    input  [      2:0] S_AWREADY,
-    output [XLEN-1:0] S_AWADDR,
-    output [      2:0] S_WVALID,
-    input  [      2:0] S_WREADY,
-    output [XLEN-1:0] S_WDATA,
-    output [      3:0] S_WSTRB,
-    input  [      2:0] S_BVALID,
-    output [      2:0] S_BREADY,
-    output [      2:0] S_ARVALID,
-    input  [      2:0] S_ARREADY,
-    output [XLEN-1:0] S_ARADDR,
-    input  [      2:0] S_RVALID,
-    output [      2:0] S_RREADY,
+    output [       2:0] S_AWVALID,
+    input  [       2:0] S_AWREADY,
+    output [  XLEN-1:0] S_AWADDR,
+    output [       2:0] S_WVALID,
+    input  [       2:0] S_WREADY,
+    output [  XLEN-1:0] S_WDATA,
+    output [       3:0] S_WSTRB,
+    input  [       2:0] S_BVALID,
+    output [       2:0] S_BREADY,
+    output [       2:0] S_ARVALID,
+    input  [       2:0] S_ARREADY,
+    output [  XLEN-1:0] S_ARADDR,
+    input  [       2:0] S_RVALID,
+    output [       2:0] S_RREADY,
     input  [XLEN*3-1:0] S_RDATA
 );
 
-  `include "memmap.vh"
+  import memmap_pkg::*;
 
   // --- Decode: which slave owns this address ---
   function [1:0] decode(input [XLEN-1:0] a);
     begin
       if (a[31:28] == MMAP_RAM_SEL) decode = SLV_RAM;
-      else if (a[31:28] == MMAP_PERI_SEL)
-        decode = (a[19:16] == 4'h1) ? SLV_TIMER : SLV_UART;
+      else if (a[31:28] == MMAP_PERI_SEL) decode = (a[19:16] == 4'h1) ? SLV_TIMER : SLV_UART;
       else decode = SLV_NONE;
     end
   endfunction
 
-  wire [1:0] aw_sel = decode(M_AWADDR);
-  wire [1:0] ar_sel = decode(M_ARADDR);
+  logic [1:0] aw_sel;
+  assign aw_sel = decode(M_AWADDR);
+  logic [1:0] ar_sel;
+  assign ar_sel = decode(M_ARADDR);
 
   // --- Latch the choice so the response can find its way home ---
-  reg [1:0] b_sel, r_sel;
-  reg       b_busy, r_busy;
+  logic [1:0] b_sel, r_sel;
+  logic b_busy, r_busy;
 
-  wire [1:0] b_route = b_busy ? b_sel : aw_sel;
-  wire [1:0] r_route = r_busy ? r_sel : ar_sel;
+  logic [1:0] b_route;
+  assign b_route = b_busy ? b_sel : aw_sel;
+  logic [1:0] r_route;
+  assign r_route = r_busy ? r_sel : ar_sel;
 
-  always @(posedge clk_i) begin
+  always_ff @(posedge clk_i) begin
     if (rst_i) begin
       b_busy <= 1'b0;
       r_busy <= 1'b0;
@@ -134,8 +134,10 @@ module axil_xbar #(
   // --- Return: pick the response from whichever slave was chosen ---
   // An unmapped address answers immediately with zeros. Hanging the master
   // would be worse: a wrong value shows up in a register dump, a hang does not.
-  wire aw_none = (aw_sel == SLV_NONE);
-  wire ar_none = (ar_sel == SLV_NONE);
+  logic aw_none;
+  assign aw_none = (aw_sel == SLV_NONE);
+  logic ar_none;
+  assign ar_none   = (ar_sel == SLV_NONE);
 
   assign M_AWREADY = aw_none ? 1'b1 : S_AWREADY[aw_sel];
   assign M_WREADY  = (b_route == SLV_NONE) ? 1'b1 : S_WREADY[b_route];
@@ -145,8 +147,7 @@ module axil_xbar #(
   assign M_ARREADY = ar_none ? 1'b1 : S_ARREADY[ar_sel];
   assign M_RVALID  = (r_route == SLV_NONE) ? r_busy : S_RVALID[r_route];
   assign M_RRESP   = 2'b00;
-  assign M_RDATA   = (r_route == SLV_NONE) ? {XLEN{1'b0}}
-                                             : S_RDATA[XLEN*r_route+:XLEN];
+  assign M_RDATA   = (r_route == SLV_NONE) ? {XLEN{1'b0}} : S_RDATA[XLEN*r_route+:XLEN];
 
 endmodule
 

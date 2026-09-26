@@ -64,69 +64,70 @@ module csr #(
 
     // Level from the timer. mip is not a register software writes -- it
     // reflects the wire, which is why clearing it means fixing the cause.
-    input            mtip_i,
-    input            instret_i,
+    input mtip_i,
+    input instret_i,
 
     output [XLEN-1:0] mtvec_o,
     output [XLEN-1:0] mepc_o,
 
     // All three conditions the spec requires before an interrupt is taken.
-    output            irq_pending_o
+    output irq_pending_o
 );
 
-  `include "csraddr.vh"
-  `include "csrop.vh"
+  import csraddr_pkg::*;
+  import csrop_pkg::*;
 
   // Only the CSRs this core actually implements get storage. Everything else
   // reads zero and swallows writes -- which is what the spec allows for
   // unimplemented machine CSRs, and keeps the decoder from needing a list.
-  reg [XLEN-1:0] mstatus  /* verilator public */;
-  reg [XLEN-1:0] mie  /* verilator public */;
-  reg [XLEN-1:0] mtvec  /* verilator public */;
-  reg [XLEN-1:0] mscratch  /* verilator public */;
-  reg [XLEN-1:0] mepc  /* verilator public */;
-  reg [XLEN-1:0] mcause  /* verilator public */;
-  reg [XLEN-1:0] mtval  /* verilator public */;
+  logic [XLEN-1:0] mstatus  /* verilator public */;
+  logic [XLEN-1:0] mie  /* verilator public */;
+  logic [XLEN-1:0] mtvec  /* verilator public */;
+  logic [XLEN-1:0] mscratch  /* verilator public */;
+  logic [XLEN-1:0] mepc  /* verilator public */;
+  logic [XLEN-1:0] mcause  /* verilator public */;
+  logic [XLEN-1:0] mtval  /* verilator public */;
   // The spec makes these 64 bits wide on every XLEN. On RV32 software reads
   // them as two halves, which is where the torn-read problem comes from.
-  reg [63:0] mcycle  /* verilator public */;
-  reg [63:0] minstret  /* verilator public */;
+  logic [63:0] mcycle  /* verilator public */;
+  logic [63:0] minstret  /* verilator public */;
 
   // mip is driven by hardware, not stored. A pending interrupt goes away
   // when the device stops asking, not when software writes a bit.
-  wire [XLEN-1:0] mip = {{(XLEN - MTIP_BIT - 1) {1'b0}}, mtip_i, {MTIP_BIT{1'b0}}};
+  logic [XLEN-1:0] mip;
+  assign mip = {{(XLEN - MTIP_BIT - 1) {1'b0}}, mtip_i, {MTIP_BIT{1'b0}}};
 
   assign irq_pending_o = mstatus[MSTATUS_MIE] && mie[MTIP_BIT] && mip[MTIP_BIT];
 
-  reg [XLEN-1:0] rdata;
+  logic [XLEN-1:0] rdata;
   assign rdata_o = rdata;
 
   // Where a trap goes, and where mret comes back to.
   assign mtvec_o = mtvec;
   assign mepc_o  = mepc;
 
-  always @(*) begin
+  always_comb begin
     case (raddr_i)
-      CSR_MSTATUS:  rdata = mstatus;
-      CSR_MIE:      rdata = mie;
-      CSR_MTVEC:    rdata = mtvec;
-      CSR_MSCRATCH: rdata = mscratch;
-      CSR_MEPC:     rdata = mepc;
-      CSR_MCAUSE:   rdata = mcause;
-      CSR_MTVAL:    rdata = mtval;
-      CSR_MIP:      rdata = mip;
+      CSR_MSTATUS:   rdata = mstatus;
+      CSR_MIE:       rdata = mie;
+      CSR_MTVEC:     rdata = mtvec;
+      CSR_MSCRATCH:  rdata = mscratch;
+      CSR_MEPC:      rdata = mepc;
+      CSR_MCAUSE:    rdata = mcause;
+      CSR_MTVAL:     rdata = mtval;
+      CSR_MIP:       rdata = mip;
       CSR_MCYCLE:    rdata = mcycle[XLEN-1:0];
       CSR_MCYCLEH:   rdata = mcycle[63:XLEN];
       CSR_MINSTRET:  rdata = minstret[XLEN-1:0];
       CSR_MINSTRETH: rdata = minstret[63:XLEN];
-      default:      rdata = {XLEN{1'b0}};
+      default:       rdata = {XLEN{1'b0}};
     endcase
   end
 
   // The three operations, applied to whatever rdata just read. Note this uses
   // the pre-write value for all three -- rd gets the same thing.
-  reg [XLEN-1:0] wdata;
-  always @(*) begin
+  logic [XLEN-1:0] wdata;
+  always_comb begin
     case (op_i)
       CSR_RW, CSR_RWI: wdata = operand_i;
       CSR_RS, CSR_RSI: wdata = rdata | operand_i;
@@ -138,7 +139,7 @@ module csr #(
   // CSRRS/CSRRC with rs1 = x0 must not write at all, so that reading a CSR
   // with side effects stays side-effect free. ctrl handles that by clearing
   // csr_wen_o, which is why this module can just trust wen_i.
-  always @(posedge clk_i) begin
+  always_ff @(posedge clk_i) begin
     if (rst_i) begin
       mstatus  <= {XLEN{1'b0}};
       mie      <= {XLEN{1'b0}};
@@ -162,14 +163,14 @@ module csr #(
       // that would have done the write is the one being trapped, so its write
       // must not happen. core also clears wen_i, but the ordering here says so
       // explicitly rather than relying on that.
-      mepc   <= trap_pc_i;
+      mepc <= trap_pc_i;
       // Bit 31 is what separates an interrupt from an exception.
       mcause <= {trap_is_irq_i, 27'b0, trap_cause_i};
-      mtval  <= trap_tval_i;
+      mtval <= trap_tval_i;
       // Interrupts off inside the handler, with the previous state saved so
       // mret can put it back. This is the whole of mstatus that matters here.
       mstatus[MSTATUS_MPIE] <= mstatus[MSTATUS_MIE];
-      mstatus[MSTATUS_MIE]  <= 1'b0;
+      mstatus[MSTATUS_MIE] <= 1'b0;
     end else if (mret_i) begin
       mstatus[MSTATUS_MIE]  <= mstatus[MSTATUS_MPIE];
       mstatus[MSTATUS_MPIE] <= 1'b1;

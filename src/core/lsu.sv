@@ -34,7 +34,7 @@
 module lsu #(
     parameter XLEN = 32
 ) (
-    input [      2:0] mem_op_i,
+    input [     2:0] mem_op_i,
     input [XLEN-1:0] addr_i,
 
     // Store path
@@ -43,35 +43,38 @@ module lsu #(
     output [XLEN-1:0] wdata_lane_o,
 
     // Load path
-    input  [XLEN-1:0] rdata_raw_i,
-    output reg [XLEN-1:0] rdata_o
+    input [XLEN-1:0] rdata_raw_i,
+    output logic [XLEN-1:0] rdata_o
 );
 
-  `include "memop.vh"
+  import memop_pkg::*;
 
-  wire [1:0] off = addr_i[1:0];
+  logic [1:0] off;
+  assign off = addr_i[1:0];
 
   // --- Store: which bytes, and where the data sits inside the word ---
   // A byte store to address 3 writes lane 3, so the byte has to be shifted up
   // by 24 bits. The bus carries a word; WSTRB says which of it to believe.
-  reg [3:0] wstrb;
+  logic [3:0] wstrb;
   assign wstrb_o = wstrb;
 
-  always @(*) begin
+  always_comb begin
     case (mem_op_i[1:0])
-      2'b00:   wstrb = 4'b0001 << off;        // SB
-      2'b01:   wstrb = 4'b0011 << off;        // SH (off[0] is 0 for aligned)
-      default: wstrb = 4'b1111;               // SW
+      2'b00:   wstrb = 4'b0001 << off;  // SB
+      2'b01:   wstrb = 4'b0011 << off;  // SH (off[0] is 0 for aligned)
+      default: wstrb = 4'b1111;  // SW
     endcase
   end
 
   assign wdata_lane_o = wdata_i << (8 * off);
 
   // --- Load: pull the wanted bytes out of the returned word and extend ---
-  wire [ 7:0] byte_sel = rdata_raw_i[8*off+:8];
-  wire [15:0] half_sel = off[1] ? rdata_raw_i[31:16] : rdata_raw_i[15:0];
+  logic [7:0] byte_sel;
+  assign byte_sel = rdata_raw_i[8*off+:8];
+  logic [15:0] half_sel;
+  assign half_sel = off[1] ? rdata_raw_i[31:16] : rdata_raw_i[15:0];
 
-  always @(*) begin
+  always_comb begin
     case (mem_op_i)
       LB_OP:   rdata_o = {{24{byte_sel[7]}}, byte_sel};
       LH_OP:   rdata_o = {{16{half_sel[15]}}, half_sel};

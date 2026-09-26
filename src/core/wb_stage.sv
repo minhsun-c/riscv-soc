@@ -29,7 +29,7 @@ module wb_stage #(
 
     output logic [XLEN-1:0] wb_data_o
 );
-  `include "rdsel.vh"
+  import rdsel_pkg::*;
 
   always_comb begin
     case (rd_src_i)

@@ -47,15 +47,16 @@ VFLAGS = -Wall $(TRACE_FLAGS) --cc --assert \
          --exe --build -j 0
 
 # --- Dependencies ---
-# 第 1–12 週的模組已經是 SystemVerilog（.sv），第 13–20 週的還是 Verilog（.v）。
-# 兩種副檔名在同一棵樹裡是過渡狀態，Verilator 兩種都吃，所以這裡一律收兩種。
-RTL_SRCS  = $(wildcard $(RTL_DIR)/*.v) $(wildcard $(RTL_DIR)/*.sv)
+# 常數放在 src/include/*_pkg.sv 的 package 裡，模組用 import 取用。
+# package 必須排在使用它的模組前面編譯，所以每一組來源都以 PKG_SRCS 開頭。
+PKG_SRCS  = $(wildcard $(INC_DIR)/*_pkg.sv)
+RTL_SRCS  = $(PKG_SRCS) $(wildcard $(RTL_DIR)/*.sv)
 CPU_DEPS  = $(RTL_SRCS)
 CORE_DEPS = $(RTL_SRCS)
-IF_DEPS   = $(RTL_DIR)/if_stage.sv $(RTL_DIR)/pc.sv   $(RTL_DIR)/mux2.sv
-ID_DEPS   = $(RTL_DIR)/id_stage.sv $(RTL_DIR)/ctrl.sv $(RTL_DIR)/decoder.sv $(RTL_DIR)/imm_gen.sv
-EX_DEPS   = $(RTL_DIR)/ex_stage.sv $(RTL_DIR)/alu.sv  $(RTL_DIR)/bcu.sv     $(RTL_DIR)/mux2.sv
-WB_DEPS   = $(RTL_DIR)/wb_stage.sv $(RTL_DIR)/mux2.sv
+IF_DEPS   = $(PKG_SRCS) $(RTL_DIR)/if_stage.sv $(RTL_DIR)/pc.sv   $(RTL_DIR)/mux2.sv
+ID_DEPS   = $(PKG_SRCS) $(RTL_DIR)/id_stage.sv $(RTL_DIR)/ctrl.sv $(RTL_DIR)/decoder.sv $(RTL_DIR)/imm_gen.sv
+EX_DEPS   = $(PKG_SRCS) $(RTL_DIR)/ex_stage.sv $(RTL_DIR)/alu.sv  $(RTL_DIR)/bcu.sv     $(RTL_DIR)/mux2.sv
+WB_DEPS   = $(PKG_SRCS) $(RTL_DIR)/wb_stage.sv $(RTL_DIR)/mux2.sv
 
 # --- Standard Targets ---
 .PHONY: all clean help style sw_build riscv-tests
@@ -110,12 +111,7 @@ ex_stage: $(EX_DEPS) $(TEST_DIR)/tb_ex_stage.cpp
 wb_stage: $(WB_DEPS) $(TEST_DIR)/tb_wb_stage.cpp
 	@$(MAKE) build_sim MODULE=wb_stage SRCS="$^"
 
-# 一條規則配一種副檔名。Make 會挑前提條件實際存在的那一條，所以
-# make alu 找到 alu.sv、make lsu 找到 lsu.v，呼叫端不必知道差別。
-%: $(RTL_DIR)/%.sv $(TEST_DIR)/tb_%.cpp
-	@$(MAKE) build_sim MODULE=$* SRCS="$^"
-
-%: $(RTL_DIR)/%.v $(TEST_DIR)/tb_%.cpp
+%: $(PKG_SRCS) $(RTL_DIR)/%.sv $(TEST_DIR)/tb_%.cpp
 	@$(MAKE) build_sim MODULE=$* SRCS="$^"
 
 # Internal helper to build and run any simulation

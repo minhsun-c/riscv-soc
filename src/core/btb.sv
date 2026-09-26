@@ -57,20 +57,24 @@ module btb #(
   localparam IDX_W = $clog2(NUM_ENTRIES);
   localparam TAG_W = XLEN - IDX_W - 2;
 
-  wire [IDX_W-1:0] rd_idx = pc_i[IDX_W+1:2];
-  wire [TAG_W-1:0] rd_tag = pc_i[XLEN-1:IDX_W+2];
-  wire [IDX_W-1:0] wr_idx = upd_pc_i[IDX_W+1:2];
-  wire [TAG_W-1:0] wr_tag = upd_pc_i[XLEN-1:IDX_W+2];
+  logic [IDX_W-1:0] rd_idx;
+  assign rd_idx = pc_i[IDX_W+1:2];
+  logic [TAG_W-1:0] rd_tag;
+  assign rd_tag = pc_i[XLEN-1:IDX_W+2];
+  logic [IDX_W-1:0] wr_idx;
+  assign wr_idx = upd_pc_i[IDX_W+1:2];
+  logic [TAG_W-1:0] wr_tag;
+  assign wr_tag = upd_pc_i[XLEN-1:IDX_W+2];
 
-  reg                  valid [0:NUM_ENTRIES-1]  /* verilator public */;
-  reg [   TAG_W-1:0]   tag   [0:NUM_ENTRIES-1]  /* verilator public */;
-  reg [    XLEN-1:0]   target[0:NUM_ENTRIES-1]  /* verilator public */;
+  logic             valid [0:NUM_ENTRIES-1]  /* verilator public */;
+  logic [TAG_W-1:0] tag   [0:NUM_ENTRIES-1]  /* verilator public */;
+  logic [ XLEN-1:0] target[0:NUM_ENTRIES-1]  /* verilator public */;
 
   assign hit_o    = valid[rd_idx] && (tag[rd_idx] == rd_tag);
   assign target_o = target[rd_idx];
 
   integer i;
-  always @(posedge clk_i) begin
+  always_ff @(posedge clk_i) begin
     if (rst_i) begin
       // Only valid needs clearing. tag and target are don't-care while
       // valid is 0, and clearing them would cost flops for nothing.

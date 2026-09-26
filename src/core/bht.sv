@@ -58,16 +58,18 @@ module bht #(
   // Instructions are word aligned, so pc[1:0] is always zero and carries no
   // information. Indexing from bit 2 up keeps consecutive instructions in
   // consecutive entries instead of piling them into one in four.
-  wire [IDX_W-1:0] rd_idx = pc_i[IDX_W+1:2];
-  wire [IDX_W-1:0] wr_idx = upd_pc_i[IDX_W+1:2];
+  logic [IDX_W-1:0] rd_idx;
+  assign rd_idx = pc_i[IDX_W+1:2];
+  logic [IDX_W-1:0] wr_idx;
+  assign wr_idx = upd_pc_i[IDX_W+1:2];
 
-  reg [1:0] counter[0:NUM_ENTRIES-1]  /* verilator public */;
+  logic [1:0] counter[0:NUM_ENTRIES-1]  /* verilator public */;
 
   // The top bit is the prediction: 10 and 11 predict taken.
   assign predict_taken_o = counter[rd_idx][1];
 
   integer i;
-  always @(posedge clk_i) begin
+  always_ff @(posedge clk_i) begin
     if (rst_i) begin
       // Weakly not taken: one taken outcome is enough to start predicting
       // taken, so a loop warms up quickly, but a stray branch does not.

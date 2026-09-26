@@ -47,18 +47,18 @@ module axil_timer #(
     input  [XLEN-1:0] WDATA,
     input  [     3:0] WSTRB,
 
-    output reg       BVALID,
-    input            BREADY,
-    output     [1:0] BRESP,
+    output logic       BVALID,
+    input              BREADY,
+    output       [1:0] BRESP,
 
     input             ARVALID,
     output            ARREADY,
     input  [XLEN-1:0] ARADDR,
 
-    output reg            RVALID,
-    input                 RREADY,
-    output reg [XLEN-1:0] RDATA,
-    output     [     1:0] RRESP,
+    output logic            RVALID,
+    input                   RREADY,
+    output logic [XLEN-1:0] RDATA,
+    output       [     1:0] RRESP,
 
     output mtip_o
 );
@@ -66,20 +66,20 @@ module axil_timer #(
   assign BRESP = 2'b00;
   assign RRESP = 2'b00;
 
-  reg [XLEN-1:0] mtime  /* verilator public */;
-  reg [XLEN-1:0] mtimecmp  /* verilator public */;
+  logic [XLEN-1:0] mtime  /* verilator public */;
+  logic [XLEN-1:0] mtimecmp  /* verilator public */;
 
   // Level, not pulse. Software clears it by moving mtimecmp forward.
   assign mtip_o = (mtime >= mtimecmp) && (mtimecmp != {XLEN{1'b0}});
 
-  reg       aw_taken;
-  reg [3:0] aw_off;
+  logic       aw_taken;
+  logic [3:0] aw_off;
 
   assign AWREADY = !aw_taken && !BVALID;
   assign WREADY  = aw_taken;
   assign ARREADY = !RVALID;
 
-  always @(posedge clk_i) begin
+  always_ff @(posedge clk_i) begin
     if (rst_i) begin
       mtime    <= {XLEN{1'b0}};
       mtimecmp <= {XLEN{1'b0}};
@@ -100,7 +100,7 @@ module axil_timer #(
         // debugging hazard.
         if (aw_off[3]) mtimecmp <= WDATA;
         aw_taken <= 1'b0;
-        BVALID <= 1'b1;
+        BVALID   <= 1'b1;
       end
       if (BVALID && BREADY) BVALID <= 1'b0;
 

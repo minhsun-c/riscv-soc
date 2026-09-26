@@ -54,8 +54,8 @@ module core #(
     input mtip_i
 );
 
-  `include "rdsel.vh"
-  `include "excause.vh"
+  import rdsel_pkg::*;
+  import excause_pkg::*;
 
   // --- Pipeline Control Wires ---   
   // Exposed so the testbench can count stall cycles: the whole point of the
@@ -244,10 +244,10 @@ module core #(
   logic [XLEN-1:0] rf_rs1_data, rf_rs2_data;
   logic [XLEN-1:0] id_rs1_data_o, id_rs2_data_o, id_imm_o;
   logic id_exc_valid, id_is_mret;
-  logic  [     3:0] id_exc_cause;
+  logic [     3:0] id_exc_cause;
   logic [    11:0] id_csr_addr;
-  logic             id_csr_wen;
-  logic  [     2:0] id_csr_op;
+  logic            id_csr_wen;
+  logic [     2:0] id_csr_op;
   logic [XLEN-1:0] id_csr_operand;
   logic            id_pred_taken;
   logic [XLEN-1:0] id_pred_target;
@@ -308,10 +308,10 @@ module core #(
   logic [XLEN-1:0] ex_pc  /* verilator public */, ex_pc_plus4, ex_rs1_data, ex_rs2_data, ex_imm;
   logic [4:0] ex_rs1_addr, ex_rs2_addr;
   logic ex_exc_valid_r, ex_is_mret;
-  logic  [     3:0] ex_exc_cause_r;
+  logic [     3:0] ex_exc_cause_r;
   logic [    11:0] ex_csr_addr;
-  logic             ex_csr_wen;
-  logic  [     2:0] ex_csr_op;
+  logic            ex_csr_wen;
+  logic [     2:0] ex_csr_op;
   logic [XLEN-1:0] ex_csr_operand;
   logic            ex_pred_taken;
   logic [XLEN-1:0] ex_pred_target;

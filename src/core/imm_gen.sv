@@ -26,7 +26,7 @@ module imm_gen #(
 );
 
   // Internal constants for selection
-  `include "immsel.vh"
+  import immsel_pkg::*;
 
   always_comb begin
     case (sel_i)

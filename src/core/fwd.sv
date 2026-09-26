@@ -46,25 +46,27 @@ module fwd (
     input       rd_wen_wb_i,
 
     // To the EX operand multiplexers
-    output reg [1:0] fwd_a_o,
-    output reg [1:0] fwd_b_o
+    output logic [1:0] fwd_a_o,
+    output logic [1:0] fwd_b_o
 );
 
-  `include "fwdsel.vh"
+  import fwdsel_pkg::*;
 
   // A producer is only relevant if it actually writes a register, and never
   // for x0: writes to x0 are discarded, so the register file's zero is the
   // correct value and forwarding one would be wrong.
-  wire mem_writes = rd_wen_mem_i && (rd_addr_mem_i != 5'd0);
-  wire wb_writes  = rd_wen_wb_i && (rd_addr_wb_i != 5'd0);
+  logic mem_writes;
+  assign mem_writes = rd_wen_mem_i && (rd_addr_mem_i != 5'd0);
+  logic wb_writes;
+  assign wb_writes = rd_wen_wb_i && (rd_addr_wb_i != 5'd0);
 
-  always @(*) begin
+  always_comb begin
     if (mem_writes && (rd_addr_mem_i == rs1_addr_ex_i)) fwd_a_o = FWD_MEM;
     else if (wb_writes && (rd_addr_wb_i == rs1_addr_ex_i)) fwd_a_o = FWD_WB;
     else fwd_a_o = FWD_NONE;
   end
 
-  always @(*) begin
+  always_comb begin
     if (mem_writes && (rd_addr_mem_i == rs2_addr_ex_i)) fwd_b_o = FWD_MEM;
     else if (wb_writes && (rd_addr_wb_i == rs2_addr_ex_i)) fwd_b_o = FWD_WB;
     else fwd_b_o = FWD_NONE;

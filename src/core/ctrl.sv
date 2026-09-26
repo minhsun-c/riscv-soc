@@ -78,13 +78,13 @@ module ctrl (
     output logic [2:0] mem_op_o
 );
 
-  `include "opcode.vh"
-  `include "aluop.vh"
-  `include "immsel.vh"
-  `include "branchop.vh"
-  `include "memop.vh"
-  `include "rdsel.vh"
-  `include "csrop.vh"
+  import opcode_pkg::*;
+  import aluop_pkg::*;
+  import immsel_pkg::*;
+  import branchop_pkg::*;
+  import memop_pkg::*;
+  import rdsel_pkg::*;
+  import csrop_pkg::*;
 
   always_comb begin
 

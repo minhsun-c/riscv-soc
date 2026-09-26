@@ -35,21 +35,21 @@ module axil_sram #(
     input  [XLEN-1:0] WDATA,
     input  [     3:0] WSTRB,
 
-    output reg       BVALID,
-    input            BREADY,
-    output     [1:0] BRESP,
+    output logic       BVALID,
+    input              BREADY,
+    output       [1:0] BRESP,
 
     input             ARVALID,
     output            ARREADY,
     input  [XLEN-1:0] ARADDR,
 
-    output reg            RVALID,
-    input                 RREADY,
-    output reg [XLEN-1:0] RDATA,
-    output     [     1:0] RRESP
+    output logic            RVALID,
+    input                   RREADY,
+    output logic [XLEN-1:0] RDATA,
+    output       [     1:0] RRESP
 );
 
-  reg [XLEN-1:0] mem[0:NUM_ENTRIES-1]  /* verilator public */;
+  logic [XLEN-1:0] mem[0:NUM_ENTRIES-1]  /* verilator public */;
 
   // OKAY on everything. A slave that can report SLVERR needs somewhere to
   // report it to, and this core has no bus-error exception yet.
@@ -57,17 +57,17 @@ module axil_sram #(
   assign RRESP = 2'b00;
 
   // --- Write: take the address, then the data ---
-  reg            aw_taken;
-  reg [ADDR_W-1:0] aw_addr;
+  logic              aw_taken;
+  logic [ADDR_W-1:0] aw_addr;
 
   assign AWREADY = !aw_taken && !BVALID;
   assign WREADY  = aw_taken;  // data only after the address, on purpose
 
   integer b;
-  always @(posedge clk_i) begin
+  always_ff @(posedge clk_i) begin
     if (rst_i) begin
       aw_taken <= 1'b0;
-      BVALID <= 1'b0;
+      BVALID   <= 1'b0;
     end else begin
       if (AWVALID && AWREADY) begin
         aw_taken <= 1'b1;
@@ -78,7 +78,7 @@ module axil_sram #(
           if (WSTRB[b]) mem[aw_addr][8*b+:8] <= WDATA[8*b+:8];
         end
         aw_taken <= 1'b0;
-        BVALID <= 1'b1;
+        BVALID   <= 1'b1;
       end
       if (BVALID && BREADY) BVALID <= 1'b0;
     end
@@ -87,7 +87,7 @@ module axil_sram #(
   // --- Read: take the address, answer next cycle ---
   assign ARREADY = !RVALID;
 
-  always @(posedge clk_i) begin
+  always_ff @(posedge clk_i) begin
     if (rst_i) begin
       RVALID <= 1'b0;
     end else begin
