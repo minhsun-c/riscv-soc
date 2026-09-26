@@ -53,16 +53,17 @@ module sram #(
     output [XLEN-1:0] rdata_o
 );
 
-  reg [XLEN-1:0] mem[0:NUM_ENTRIES-1]  /* verilator public */;
+  logic [XLEN-1:0] mem[0:NUM_ENTRIES-1]  /* verilator public */;
 
-  wire [ADDR_W-1:0] word_addr = addr_i[ADDR_W+1:2];
+  logic [ADDR_W-1:0] word_addr;
+  assign word_addr = addr_i[ADDR_W+1:2];
 
   // This memory never makes anyone wait to be accepted. A bus will.
-  assign ready_o = 1'b1;
+  assign ready_o   = 1'b1;
 
   // --- Write: one lane per strobe bit, and nothing else touched ---
   integer b;
-  always @(posedge clk_i) begin
+  always_ff @(posedge clk_i) begin
     if (req_i) begin
       for (b = 0; b < 4; b = b + 1) begin
         if (wstrb_i[b]) mem[word_addr][8*b+:8] <= wdata_i[8*b+:8];
@@ -76,9 +77,9 @@ module sram #(
       assign rvalid_o = req_i;
       assign rdata_o  = mem[word_addr];
     end else begin : g_sync_read
-      reg            rv;
-      reg [XLEN-1:0] rd;
-      always @(posedge clk_i) begin
+      logic            rv;
+      logic [XLEN-1:0] rd;
+      always_ff @(posedge clk_i) begin
         rv <= req_i;
         rd <= mem[word_addr];
       end

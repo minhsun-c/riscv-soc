@@ -47,35 +47,35 @@ module ctrl (
     input [6:0] funct7_i,
 
     // RegFile & ImmGen Signals
-    output reg       rd_wen_o,
-    output reg [2:0] rd_src_o,
-    output reg [2:0] imm_sel_o,
-    output reg       rs1_ren_o,
-    output reg       rs2_ren_o,
+    output logic       rd_wen_o,
+    output logic [2:0] rd_src_o,
+    output logic [2:0] imm_sel_o,
+    output logic       rs1_ren_o,
+    output logic       rs2_ren_o,
 
     // CSR Signals
-    output reg       csr_wen_o,
-    output reg [2:0] csr_op_o,
+    output logic       csr_wen_o,
+    output logic [2:0] csr_op_o,
 
     // 1 if this opcode is not one this core implements. id_stage refines it
     // for SYSTEM, where the immediate decides whether it is legal.
-    output reg       illegal_o,
+    output logic illegal_o,
 
     // ALU Signals
-    output reg       alu_src_a_o,
-    output reg       alu_src_b_o,
-    output reg [2:0] alu_op_o,
-    output reg       alu_shift_o,
-    output reg       alu_sub_o,
+    output logic       alu_src_a_o,
+    output logic       alu_src_b_o,
+    output logic [2:0] alu_op_o,
+    output logic       alu_shift_o,
+    output logic       alu_sub_o,
 
     // Branch & Jump Signals
-    output reg       branch_o,
-    output reg [2:0] branch_op_o,
-    output reg       jump_o,
+    output logic       branch_o,
+    output logic [2:0] branch_op_o,
+    output logic       jump_o,
 
     // Memory Signals
-    output reg       mem_wen_o,
-    output reg [2:0] mem_op_o
+    output logic       mem_wen_o,
+    output logic [2:0] mem_op_o
 );
 
   `include "opcode.vh"
@@ -86,13 +86,13 @@ module ctrl (
   `include "rdsel.vh"
   `include "csrop.vh"
 
-  always @(*) begin
+  always_comb begin
 
     // Two more signals to clear before the case, for the same reason as all
     // the others: a branch that forgets one of them creates a latch.
-    csr_wen_o   = 1'b0;
-    csr_op_o    = CSR_NONE;
-    illegal_o   = 1'b0;
+    csr_wen_o = 1'b0;
+    csr_op_o  = CSR_NONE;
+    illegal_o = 1'b0;
 
     case (opcode_i)
       R_TYPE: begin

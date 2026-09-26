@@ -47,34 +47,34 @@ module if_id #(
     input [XLEN-1:0] pred_target_i,
 
     // To Decode (ID) Stage
-    output reg [XLEN-1:0] pc_o,
-    output reg [XLEN-1:0] pc_plus4_o,
-    output reg [XLEN-1:0] inst_o,
-    output reg            pred_taken_o,
-    output reg [XLEN-1:0] pred_target_o
+    output logic [XLEN-1:0] pc_o,
+    output logic [XLEN-1:0] pc_plus4_o,
+    output logic [XLEN-1:0] inst_o,
+    output logic            pred_taken_o,
+    output logic [XLEN-1:0] pred_target_o
 );
 
   // RISC-V NOP instruction: addi x0, x0, 0
   localparam [31:0] NOP = 32'h00000013;
 
-  always @(posedge clk_i) begin
+  always_ff @(posedge clk_i) begin
     if (rst_i || flush_i) begin
-      pc_o       <= {XLEN{1'b0}};
-      pc_plus4_o <= {XLEN{1'b0}};
-      inst_o     <= NOP;
+      pc_o          <= {XLEN{1'b0}};
+      pc_plus4_o    <= {XLEN{1'b0}};
+      inst_o        <= NOP;
       // A flushed slot carries no instruction, so it carries no guess either.
       pred_taken_o  <= 1'b0;
       pred_target_o <= {XLEN{1'b0}};
     end else if (stall_i) begin
-      pc_o       <= pc_o;
-      pc_plus4_o <= pc_plus4_o;
-      inst_o     <= inst_o;
+      pc_o          <= pc_o;
+      pc_plus4_o    <= pc_plus4_o;
+      inst_o        <= inst_o;
       pred_taken_o  <= pred_taken_o;
       pred_target_o <= pred_target_o;
     end else begin
-      pc_o       <= pc_i;
-      pc_plus4_o <= pc_plus4_i;
-      inst_o     <= inst_i;
+      pc_o          <= pc_i;
+      pc_plus4_o    <= pc_plus4_i;
+      inst_o        <= inst_i;
       pred_taken_o  <= pred_taken_i;
       pred_target_o <= pred_target_i;
     end

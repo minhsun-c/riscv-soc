@@ -28,13 +28,13 @@ module pc #(
 
     // Redirect wins over stall: if EX says the fetch path was wrong, holding
     // the PC would only keep fetching down the wrong path for another cycle.
-    input                 redirect_i,
-    input                 stall_i,
-    input      [XLEN-1:0] pc_next_i,
-    output reg [XLEN-1:0] pc_o
+    input                   redirect_i,
+    input                   stall_i,
+    input        [XLEN-1:0] pc_next_i,
+    output logic [XLEN-1:0] pc_o
 );
 
-  always @(posedge clk_i) begin
+  always_ff @(posedge clk_i) begin
     if (rst_i) begin
       pc_o <= {XLEN{1'b0}};
     end else if (redirect_i) begin

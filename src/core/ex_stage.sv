@@ -57,8 +57,8 @@ module ex_stage #(
     input [XLEN-1:0] imm_i,
 
     // Forwarding: selectors from fwd, and the two in-flight values they pick from
-    input [      1:0] fwd_a_i,
-    input [      1:0] fwd_b_i,
+    input [     1:0] fwd_a_i,
+    input [     1:0] fwd_b_i,
     input [XLEN-1:0] fwd_mem_data_i,
     input [XLEN-1:0] fwd_wb_data_i,
 
@@ -81,8 +81,8 @@ module ex_stage #(
   // and the newer value is taken from MEM or WB instead. Written as a case rather
   // than a mux3 module: this is the operand-selection stage, and the selection
   // logic belongs here in plain sight.
-  reg [XLEN-1:0] rs1_fwd;
-  always @(*) begin
+  logic [XLEN-1:0] rs1_fwd;
+  always_comb begin
     case (fwd_a_i)
       FWD_MEM: rs1_fwd = fwd_mem_data_i;
       FWD_WB:  rs1_fwd = fwd_wb_data_i;
@@ -90,8 +90,8 @@ module ex_stage #(
     endcase
   end
 
-  reg [XLEN-1:0] rs2_fwd;
-  always @(*) begin
+  logic [XLEN-1:0] rs2_fwd;
+  always_comb begin
     case (fwd_b_i)
       FWD_MEM: rs2_fwd = fwd_mem_data_i;
       FWD_WB:  rs2_fwd = fwd_wb_data_i;
@@ -111,7 +111,7 @@ module ex_stage #(
 
   // --- Operand A Multiplexer ---
   // If alu_src_a_i is 1, we use the pc. Otherwise, we use the forwarded rs1
-  wire [XLEN-1:0] alu_operand_a;
+  logic [XLEN-1:0] alu_operand_a;
   mux2 #(
       .WIDTH(XLEN)
   ) u_mux2_a (
@@ -123,7 +123,7 @@ module ex_stage #(
 
   // --- Operand B Multiplexer ---
   // If alu_src_b_i is 1, we use the immediate. Otherwise, we use rs2_operand
-  wire [XLEN-1:0] alu_operand_b;
+  logic [XLEN-1:0] alu_operand_b;
   mux2 #(
       .WIDTH(XLEN)
   ) u_mux2_b (
@@ -168,10 +168,11 @@ module ex_stage #(
   // Getting "taken" right is not enough on its own -- a btb entry can survive
   // from a different branch that mapped to the same index and hand back the
   // wrong target, so the target has to be checked too.
-  wire target_ok = (pred_target_i == jb_target_o);
+  logic target_ok;
+  assign target_ok = (pred_target_i == jb_target_o);
 
   assign redirect_o = jb_taken_o ? !(pred_taken_i && target_ok)  // guessed not-taken, or right idea wrong target
-                                 : pred_taken_i;                 // guessed taken, but it was not
+      : pred_taken_i;  // guessed taken, but it was not
 
   // Where fetch should have gone. Note this is the correct PC either way, not
   // "the target" -- a branch predicted taken that turns out not to be has to

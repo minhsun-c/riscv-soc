@@ -27,11 +27,11 @@ module wb_stage #(
     input [XLEN-1:0] pc_plus4_i,
     input [XLEN-1:0] csr_rdata_i,
 
-    output reg [XLEN-1:0] wb_data_o
+    output logic [XLEN-1:0] wb_data_o
 );
   `include "rdsel.vh"
 
-  always @(*) begin
+  always_comb begin
     case (rd_src_i)
       ALU_RDSEL: wb_data_o = alu_result_i;
       MEM_RDSEL: wb_data_o = mem_data_i;

@@ -45,55 +45,55 @@ module ex_mem #(
     input [     4:0] rd_addr_i,
 
     // Control Signals (from EX Stage, originally from ID)
-    input       rd_wen_i,
-    input [2:0] rd_src_i,
-    input  exc_valid_i,
-    input [3:0] exc_cause_i,
-    input  is_mret_i,
-    input [11:0] csr_addr_i,
-    input  csr_wen_i,
-    input [ 2:0] csr_op_i,
+    input            rd_wen_i,
+    input [     2:0] rd_src_i,
+    input            exc_valid_i,
+    input [     3:0] exc_cause_i,
+    input            is_mret_i,
+    input [    11:0] csr_addr_i,
+    input            csr_wen_i,
+    input [     2:0] csr_op_i,
     input [XLEN-1:0] csr_operand_i,
-    input [2:0] mem_op_i,
-    input       mem_wen_i,
+    input [     2:0] mem_op_i,
+    input            mem_wen_i,
 
     // Outputs to MEM Stage
-    output reg [XLEN-1:0] pc_plus4_o,
-    output reg [XLEN-1:0] alu_result_o,
-    output reg [XLEN-1:0] rs2_data_o,
-    output reg [     4:0] rd_addr_o,
+    output logic [XLEN-1:0] pc_plus4_o,
+    output logic [XLEN-1:0] alu_result_o,
+    output logic [XLEN-1:0] rs2_data_o,
+    output logic [     4:0] rd_addr_o,
 
     // Control Signals to MEM/WB Stages
-    output reg       rd_wen_o,
-    output reg [2:0] rd_src_o,
-    output reg  exc_valid_o,
-    output reg [3:0] exc_cause_o,
-    output reg  is_mret_o,
-    output reg [11:0] csr_addr_o,
-    output reg  csr_wen_o,
-    output reg [ 2:0] csr_op_o,
-    output reg [XLEN-1:0] csr_operand_o,
-    output reg [2:0] mem_op_o,
-    output reg       mem_wen_o
+    output logic            rd_wen_o,
+    output logic [     2:0] rd_src_o,
+    output logic            exc_valid_o,
+    output logic [     3:0] exc_cause_o,
+    output logic            is_mret_o,
+    output logic [    11:0] csr_addr_o,
+    output logic            csr_wen_o,
+    output logic [     2:0] csr_op_o,
+    output logic [XLEN-1:0] csr_operand_o,
+    output logic [     2:0] mem_op_o,
+    output logic            mem_wen_o
 );
 
-  always @(posedge clk_i) begin
+  always_ff @(posedge clk_i) begin
     if (rst_i || flush_i) begin
-      pc_plus4_o   <= {XLEN{1'b0}};
-      alu_result_o <= {XLEN{1'b0}};
-      rs2_data_o   <= {XLEN{1'b0}};
-      rd_addr_o    <= 5'b0;
-      rd_wen_o     <= 1'b0;
-      rd_src_o     <= 3'b0;
-      exc_valid_o <= 1'b0;
-      exc_cause_o <= 4'b0;
-      is_mret_o <= 1'b0;
-      csr_addr_o <= 12'b0;
-      csr_wen_o <= 1'b0;
-      csr_op_o <= 3'b0;
+      pc_plus4_o    <= {XLEN{1'b0}};
+      alu_result_o  <= {XLEN{1'b0}};
+      rs2_data_o    <= {XLEN{1'b0}};
+      rd_addr_o     <= 5'b0;
+      rd_wen_o      <= 1'b0;
+      rd_src_o      <= 3'b0;
+      exc_valid_o   <= 1'b0;
+      exc_cause_o   <= 4'b0;
+      is_mret_o     <= 1'b0;
+      csr_addr_o    <= 12'b0;
+      csr_wen_o     <= 1'b0;
+      csr_op_o      <= 3'b0;
       csr_operand_o <= {XLEN{1'b0}};
-      mem_wen_o    <= 1'b0;
-      mem_op_o     <= 3'b0;
+      mem_wen_o     <= 1'b0;
+      mem_op_o      <= 3'b0;
     end else if (stall_i) begin
       pc_plus4_o   <= pc_plus4_o;
       alu_result_o <= alu_result_o;
@@ -104,21 +104,21 @@ module ex_mem #(
       mem_wen_o    <= mem_wen_o;
       mem_op_o     <= mem_op_o;
     end else begin
-      pc_plus4_o   <= pc_plus4_i;
-      alu_result_o <= alu_result_i;
-      rs2_data_o   <= rs2_data_i;
-      rd_addr_o    <= rd_addr_i;
-      rd_wen_o     <= rd_wen_i;
-      rd_src_o     <= rd_src_i;
-      exc_valid_o <= exc_valid_i;
-      exc_cause_o <= exc_cause_i;
-      is_mret_o <= is_mret_i;
-      csr_addr_o <= csr_addr_i;
-      csr_wen_o <= csr_wen_i;
-      csr_op_o <= csr_op_i;
+      pc_plus4_o    <= pc_plus4_i;
+      alu_result_o  <= alu_result_i;
+      rs2_data_o    <= rs2_data_i;
+      rd_addr_o     <= rd_addr_i;
+      rd_wen_o      <= rd_wen_i;
+      rd_src_o      <= rd_src_i;
+      exc_valid_o   <= exc_valid_i;
+      exc_cause_o   <= exc_cause_i;
+      is_mret_o     <= is_mret_i;
+      csr_addr_o    <= csr_addr_i;
+      csr_wen_o     <= csr_wen_i;
+      csr_op_o      <= csr_op_i;
       csr_operand_o <= csr_operand_i;
-      mem_wen_o    <= mem_wen_i;
-      mem_op_o     <= mem_op_i;
+      mem_wen_o     <= mem_wen_i;
+      mem_op_o      <= mem_op_i;
     end
   end
 

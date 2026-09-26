@@ -59,18 +59,18 @@ module id_stage #(
     input [XLEN-1:0] rs2_data_i,
 
     // Data Signals to EX
-    output       alu_sub_o,
+    output alu_sub_o,
 
     // CSR access, assembled here because this is where the instruction is
-    output [11:0] csr_addr_o,
-    output        csr_wen_o,
-    output [ 2:0] csr_op_o,
+    output [    11:0] csr_addr_o,
+    output            csr_wen_o,
+    output [     2:0] csr_op_o,
     output [XLEN-1:0] csr_operand_o,
 
     // Exceptions detected here: everything that only needs the instruction
-    output       exc_valid_o,
-    output [3:0] exc_cause_o,
-    output       is_mret_o,
+    output            exc_valid_o,
+    output [     3:0] exc_cause_o,
+    output            is_mret_o,
     output [XLEN-1:0] rs1_data_o,
     output [XLEN-1:0] rs2_data_o,
     output [XLEN-1:0] imm_o,
@@ -91,21 +91,21 @@ module id_stage #(
 );
 
   // --- Internal Wires from Decoder ---
-  wire [6:0] dec_opcode;
-  wire [2:0] dec_funct3;
-  wire [6:0] dec_funct7;
+  logic [6:0] dec_opcode;
+  logic [2:0] dec_funct3;
+  logic [6:0] dec_funct7;
 
   // --- Internal Wire from ImmGen ---
-  wire [2:0] ctrl_imm_sel;
+  logic [2:0] ctrl_imm_sel;
 
   // --- Raw register fields, before format masking ---
-  wire [4:0] dec_rs1;
-  wire [4:0] dec_rs2;
-  wire       ctrl_rs1_ren;
-  wire       ctrl_csr_wen;
-  wire       ctrl_illegal;
-  wire [2:0] ctrl_csr_op;
-  wire       ctrl_rs2_ren;
+  logic [4:0] dec_rs1;
+  logic [4:0] dec_rs2;
+  logic       ctrl_rs1_ren;
+  logic       ctrl_csr_wen;
+  logic       ctrl_illegal;
+  logic [2:0] ctrl_csr_op;
+  logic       ctrl_rs2_ren;
 
   decoder u_decoder (
       .inst_i  (inst_i),
@@ -180,7 +180,7 @@ module id_stage #(
   `include "csrop.vh"
 
   assign csr_addr_o = inst_i[31:20];
-  assign csr_op_o   = ctrl_csr_op;
+  assign csr_op_o = ctrl_csr_op;
 
   // Only the immediate half of the operand can be decided here. The rs1 half
   // has to wait for EX, because that is where forwarding happens -- see
@@ -191,7 +191,8 @@ module id_stage #(
   // must not write at all -- so that reading a CSR with side effects stays
   // side-effect free. Nothing here has side effects yet, but the rule is free
   // to obey and expensive to retrofit.
-  wire csr_is_set_clear = (ctrl_csr_op == CSR_RS) || (ctrl_csr_op == CSR_RC)
+  logic csr_is_set_clear;
+  assign csr_is_set_clear = (ctrl_csr_op == CSR_RS) || (ctrl_csr_op == CSR_RC)
       || (ctrl_csr_op == CSR_RSI) || (ctrl_csr_op == CSR_RCI);
   assign csr_wen_o = ctrl_csr_wen && !(csr_is_set_clear && (csr_operand_o == {XLEN{1'b0}}));
 
@@ -201,23 +202,27 @@ module id_stage #(
 
   // SYSTEM with funct3 = 000 is not a CSR access. Which privileged instruction
   // it is comes from the immediate field, and anything else there is illegal.
-  wire is_system = (dec_opcode == SYSTEM);
-  wire is_priv   = is_system && (ctrl_csr_op == CSR_PRIV);
-  wire [11:0] priv_imm = inst_i[31:20];
+  logic is_system;
+  assign is_system = (dec_opcode == SYSTEM);
+  logic is_priv;
+  assign is_priv = is_system && (ctrl_csr_op == CSR_PRIV);
+  logic [11:0] priv_imm;
+  assign priv_imm  = inst_i[31:20];
 
   assign is_mret_o = is_priv && (priv_imm == PRIV_MRET);
-  wire is_ecall    = is_priv && (priv_imm == PRIV_ECALL);
-  wire is_ebreak   = is_priv && (priv_imm == PRIV_EBREAK);
+  logic is_ecall;
+  assign is_ecall = is_priv && (priv_imm == PRIV_ECALL);
+  logic is_ebreak;
+  assign is_ebreak = is_priv && (priv_imm == PRIV_EBREAK);
 
   // An unrecognised opcode, or a SYSTEM instruction whose immediate names
   // nothing. ctrl cannot decide the second case because it never sees the
   // immediate -- it only gets opcode, funct3 and funct7.
-  wire illegal = ctrl_illegal || (is_priv && !is_mret_o && !is_ecall && !is_ebreak);
+  logic illegal;
+  assign illegal = ctrl_illegal || (is_priv && !is_mret_o && !is_ecall && !is_ebreak);
 
   assign exc_valid_o = illegal || is_ecall || is_ebreak;
-  assign exc_cause_o = illegal  ? EXC_ILLEGAL_INST :
-                       is_ecall ? EXC_ECALL_M :
-                                  EXC_BREAKPOINT;
+  assign exc_cause_o = illegal ? EXC_ILLEGAL_INST : is_ecall ? EXC_ECALL_M : EXC_BREAKPOINT;
 
 endmodule
 

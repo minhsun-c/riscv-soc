@@ -47,12 +47,15 @@ VFLAGS = -Wall $(TRACE_FLAGS) --cc --assert \
          --exe --build -j 0
 
 # --- Dependencies ---
-CPU_DEPS  = $(wildcard $(RTL_DIR)/*.v)
-CORE_DEPS = $(wildcard $(RTL_DIR)/*.v)
-IF_DEPS   = $(RTL_DIR)/if_stage.v  $(RTL_DIR)/pc.v   $(RTL_DIR)/mux2.v
-ID_DEPS   = $(RTL_DIR)/id_stage.v  $(RTL_DIR)/ctrl.v $(RTL_DIR)/decoder.v $(RTL_DIR)/imm_gen.v
-EX_DEPS   = $(RTL_DIR)/ex_stage.v  $(RTL_DIR)/alu.v  $(RTL_DIR)/bcu.v     $(RTL_DIR)/mux2.v
-WB_DEPS   = $(RTL_DIR)/wb_stage.v  $(RTL_DIR)/mux2.v
+# 第 1–12 週的模組已經是 SystemVerilog（.sv），第 13–20 週的還是 Verilog（.v）。
+# 兩種副檔名在同一棵樹裡是過渡狀態，Verilator 兩種都吃，所以這裡一律收兩種。
+RTL_SRCS  = $(wildcard $(RTL_DIR)/*.v) $(wildcard $(RTL_DIR)/*.sv)
+CPU_DEPS  = $(RTL_SRCS)
+CORE_DEPS = $(RTL_SRCS)
+IF_DEPS   = $(RTL_DIR)/if_stage.sv $(RTL_DIR)/pc.sv   $(RTL_DIR)/mux2.sv
+ID_DEPS   = $(RTL_DIR)/id_stage.sv $(RTL_DIR)/ctrl.sv $(RTL_DIR)/decoder.sv $(RTL_DIR)/imm_gen.sv
+EX_DEPS   = $(RTL_DIR)/ex_stage.sv $(RTL_DIR)/alu.sv  $(RTL_DIR)/bcu.sv     $(RTL_DIR)/mux2.sv
+WB_DEPS   = $(RTL_DIR)/wb_stage.sv $(RTL_DIR)/mux2.sv
 
 # --- Standard Targets ---
 .PHONY: all clean help style sw_build riscv-tests
@@ -107,6 +110,11 @@ ex_stage: $(EX_DEPS) $(TEST_DIR)/tb_ex_stage.cpp
 wb_stage: $(WB_DEPS) $(TEST_DIR)/tb_wb_stage.cpp
 	@$(MAKE) build_sim MODULE=wb_stage SRCS="$^"
 
+# 一條規則配一種副檔名。Make 會挑前提條件實際存在的那一條，所以
+# make alu 找到 alu.sv、make lsu 找到 lsu.v，呼叫端不必知道差別。
+%: $(RTL_DIR)/%.sv $(TEST_DIR)/tb_%.cpp
+	@$(MAKE) build_sim MODULE=$* SRCS="$^"
+
 %: $(RTL_DIR)/%.v $(TEST_DIR)/tb_%.cpp
 	@$(MAKE) build_sim MODULE=$* SRCS="$^"
 
@@ -157,7 +165,7 @@ else
 endif
 
 ifdef VERIBLE_FORMAT
-	$(VERIBLE_FORMAT) --inplace $(RTL_DIR)/*.v
+	$(VERIBLE_FORMAT) --inplace $(RTL_SRCS)
 	@echo "Verilog formatting complete."
 else
 	@echo "Hint: verible-verilog-format not found. Skip Verilog styling."

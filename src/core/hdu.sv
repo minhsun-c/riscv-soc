@@ -42,7 +42,7 @@ module hdu (
     input [2:0] rd_src_ex_i,
 
     // Output to Pipeline Control
-    output reg stall_o
+    output logic stall_o
 );
 
   `include "rdsel.vh"
@@ -57,10 +57,12 @@ module hdu (
   // Both are the same hazard wearing different clothes, and both are fixed by
   // the same single stall: it pushes the consumer back far enough that the
   // producer has reached WB, where FWD_WB picks the value up.
-  wire late_value = (rd_src_ex_i == MEM_RDSEL) || (rd_src_ex_i == CSR_RDSEL);
-  wire load_in_ex = reg_write_ex_i && late_value && (rd_ex_i != 5'd0);
+  logic late_value;
+  assign late_value = (rd_src_ex_i == MEM_RDSEL) || (rd_src_ex_i == CSR_RDSEL);
+  logic load_in_ex;
+  assign load_in_ex = reg_write_ex_i && late_value && (rd_ex_i != 5'd0);
 
-  always @(*) begin
+  always_comb begin
     if (load_in_ex && ((rs1_id_i == rd_ex_i) || (rs2_id_i == rd_ex_i))) begin
       stall_o = 1'b1;
     end else begin

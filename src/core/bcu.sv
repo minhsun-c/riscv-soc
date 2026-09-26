@@ -30,13 +30,15 @@ module bcu #(
   `include "branchop.vh"
 
   // Helper wire: In SLT/SLTU mode, the ALU result LSB is the "Less Than" flag.
-  wire alu_less_than = alu_result_i[0];
+  logic alu_less_than;
+  assign alu_less_than = alu_result_i[0];
   // Helper wire: In SUB mode, all bits zero means equality.
-  wire alu_is_zero = (alu_result_i == {XLEN{1'b0}});
+  logic alu_is_zero;
+  assign alu_is_zero = (alu_result_i == {XLEN{1'b0}});
 
-  reg  branch_taken;
+  logic branch_taken;
 
-  always @(*) begin
+  always_comb begin
     case (branch_op_i)
       // Equality checks (ALU did SUB)
       BEQ_OP: branch_taken = alu_is_zero;

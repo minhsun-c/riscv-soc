@@ -20,15 +20,15 @@
 module imm_gen #(
     parameter XLEN = 32
 ) (
-    input      [XLEN-1:0] inst_i,
-    input      [     2:0] sel_i,
-    output reg [XLEN-1:0] imm_o
+    input        [XLEN-1:0] inst_i,
+    input        [     2:0] sel_i,
+    output logic [XLEN-1:0] imm_o
 );
 
   // Internal constants for selection
   `include "immsel.vh"
 
-  always @(*) begin
+  always_comb begin
     case (sel_i)
       I_IMM_MODE: begin
         imm_o = {{20{inst_i[31]}}, inst_i[31:20]};

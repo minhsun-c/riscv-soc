@@ -51,7 +51,7 @@ module regfile #(
     output [XLEN-1 : 0] rs1_data_o,
     output [XLEN-1 : 0] rs2_data_o
 );
-  reg [XLEN-1 : 0] x[0 : NUM_REGS-1]  /* verilator public */;
+  logic [XLEN-1 : 0] x[0 : NUM_REGS-1]  /* verilator public */;
 
   // --- Asynchronous Read Logic ---
   // RISC-V x0 is hardwired to zero. If the address is 0, output 0.
@@ -59,7 +59,7 @@ module regfile #(
   assign rs2_data_o = (rs2_addr_i == 0) ? {XLEN{1'b0}} : x[rs2_addr_i];
 
   // --- Synchronous Write Logic ---
-  always @(negedge clk_i) begin
+  always_ff @(negedge clk_i) begin
     if (rst_i) begin
       for (integer i = 0; i < XLEN; i = i + 1) x[i] <= {XLEN{1'b0}};
     end else if (rd_we_i && rd_addr_i != 0) begin

@@ -47,7 +47,7 @@ module if_stage #(
     output [XLEN-1:0] pc_plus4_o
 );
 
-  wire [XLEN-1:0] pc_next;
+  logic [XLEN-1:0] pc_next;
 
   // --- Phase 1: Use Current PC ---
   // Before the clock edge, we use the current PC to calculate the sequential 

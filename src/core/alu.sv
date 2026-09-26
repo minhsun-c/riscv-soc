@@ -25,23 +25,23 @@
 module alu #(
     parameter XLEN = 32
 ) (
-    input      [XLEN-1 : 0] a_i,
-    input      [XLEN-1 : 0] b_i,
-    input      [     2 : 0] op_i,
-    input                   shift_mode_i,
-    input                   sub_i,
-    output reg [XLEN-1 : 0] result_o
+    input        [XLEN-1 : 0] a_i,
+    input        [XLEN-1 : 0] b_i,
+    input        [     2 : 0] op_i,
+    input                     shift_mode_i,
+    input                     sub_i,
+    output logic [XLEN-1 : 0] result_o
 );
 
   `include "aluop.vh"
 
-  wire [XLEN-1:0] result_srl;
-  wire [XLEN-1:0] result_sra;
+  logic [XLEN-1:0] result_srl;
+  logic [XLEN-1:0] result_sra;
 
   assign result_srl = a_i >> b_i[4:0];
   assign result_sra = $signed($signed(a_i) >>> b_i[4:0]);
 
-  always @(*) begin
+  always_comb begin
     case (op_i)
       // Subtraction is the same adder with b inverted and a carry in, which is
       // what `a - b` synthesises to. Doing `~b + 1` outside the ALU would cost a
