@@ -8,14 +8,20 @@ This project is a cycle-accurate implementation of a **RISC-V 32-bit Base Intege
 
 ```text
 .
-├── core/
-│   ├── include/          # Verilog Header files (*.vh) for opcodes and control constants
-│   └── riscv/            # Modular RTL implementation of each pipeline stage
+├── src/
+│   ├── cpu.sv            # SoC top -- core, memory and bus wired together
+│   ├── core/             # Pipeline: five stages, four pipeline registers,
+│   │                     #   hazards, prediction, CSRs
+│   ├── bus/              # Interconnect: AXI4-Lite master and address decode
+│   ├── mem/              # Memory hierarchy: SRAM and its bus wrapper
+│   ├── peri/             # Peripherals: UART, timer
+│   └── include/          # SystemVerilog packages (*_pkg.sv) for opcodes and
+│                         #   control constants
 ├── test/
 │   ├── core_test/        # Assembly-level test cases for the integrated Core
 │   ├── cpu_test/         # System-level test cases for CPU + Memory integration
 │   ├── test_program/     # Complex C programs (Merge Sort, Josephus) for validation
-│   ├── tb_*.cpp          # Unit testbenches for individual Verilog modules
+│   ├── tb_*.cpp          # Unit testbenches for individual modules
 │   └── checker.h         # Verification macros for automated result checking
 ├── docs/                 # RISC-V Architecture manuals and reference PDFs
 └── Makefile              # Centralized build system for simulation and testing
@@ -30,41 +36,41 @@ The processor is divided into five stages, with dedicated pipeline registers and
 
 ### 1. Instruction Fetch (IF)
 
-* **`pc.v`**: Program Counter with stall and branch redirection support.
-* **`if_stage.v`**: Calculates the next PC and fetches instructions from memory.
-* **`if_id.v`**: Pipeline register that buffers fetched instructions; supports flushing for branch mispredictions.
+* **`pc.sv`**: Program Counter with stall and branch redirection support.
+* **`if_stage.sv`**: Calculates the next PC and fetches instructions from memory.
+* **`if_id.sv`**: Pipeline register that buffers fetched instructions; supports flushing for branch mispredictions.
 
 ### 2. Instruction Decode (ID)
 
-* **`id_stage.v`**: Top-level decode stage encapsulating logic for control and register access.
-* **`decoder.v`**: Slices raw 32-bit instructions into architectural fields.
-* **`ctrl.v`**: Central control unit generating datapath signals.
-* **`imm_gen.v`**: Extracts and sign-extends immediates for I, S, B, U, and J types.
-* **`regfile.v`**: 32 x 32-bit register file; `x0` is internally hardwired to zero.
-* **`id_ex.v`**: Pipeline register passing decoded data and control signals to the execution stage.
+* **`id_stage.sv`**: Top-level decode stage encapsulating logic for control and register access.
+* **`decoder.sv`**: Slices raw 32-bit instructions into architectural fields.
+* **`ctrl.sv`**: Central control unit generating datapath signals.
+* **`imm_gen.sv`**: Extracts and sign-extends immediates for I, S, B, U, and J types.
+* **`regfile.sv`**: 32 x 32-bit register file; `x0` is internally hardwired to zero.
+* **`id_ex.sv`**: Pipeline register passing decoded data and control signals to the execution stage.
 
 ### 3. Execute (EX)
 
-* **`ex_stage.v`**: Manages operand selection and functional unit execution.
-* **`alu.v`**: Performs arithmetic, logic, and shifting operations.
-* **`bcu.v`**: Branch Control Unit; evaluates branch conditions (BEQ, BLT, etc.) to determine PC redirection.
-* **`ex_mem.v`**: Pipeline register passing ALU results and store data to the memory stage.
+* **`ex_stage.sv`**: Manages operand selection and functional unit execution.
+* **`alu.sv`**: Performs arithmetic, logic, and shifting operations.
+* **`bcu.sv`**: Branch Control Unit; evaluates branch conditions (BEQ, BLT, etc.) to determine PC redirection.
+* **`ex_mem.sv`**: Pipeline register passing ALU results and store data to the memory stage.
 
 ### 4. Memory (MEM)
 
-* **`sram.v`**: Byte-addressable memory module handling Load/Store alignment (LB, LH, LW, SB, SH, SW).
-* **`mem_wb.v`**: Pipeline register passing loaded data or ALU results to the write-back stage.
+* **`sram.sv`**: Byte-addressable memory module handling Load/Store alignment (LB, LH, LW, SB, SH, SW).
+* **`mem_wb.sv`**: Pipeline register passing loaded data or ALU results to the write-back stage.
 
 ### 5. Write-Back (WB)
 
-* **`wb_stage.v`**: Final multiplexer selecting data (ALU, Memory, or PC+4) to be retired into the Register File.
+* **`wb_stage.sv`**: Final multiplexer selecting data (ALU, Memory, or PC+4) to be retired into the Register File.
 
 ### System Support
 
-* **`hdu.v`**: **Hazard Detection Unit**. Detects data hazards and asserts `stall` to resolve dependencies by freezing the IF/ID stages.
-* **`mux2.v`**: Parametric 2-to-1 multiplexer used for datapath selection.
-* **`core.v`**: Integrated 5-stage pipeline.
-* **`cpu.v`**: Top-level SoC wrapper connecting the Core to separate Instruction and Data SRAMs.
+* **`hdu.sv`**: **Hazard Detection Unit**. Detects data hazards and asserts `stall` to resolve dependencies by freezing the IF/ID stages.
+* **`mux2.sv`**: Parametric 2-to-1 multiplexer used for datapath selection.
+* **`core.sv`**: Integrated 5-stage pipeline.
+* **`cpu.sv`**: Top-level SoC wrapper connecting the Core to separate Instruction and Data SRAMs.
 
 ---
 
