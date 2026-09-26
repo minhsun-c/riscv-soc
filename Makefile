@@ -1,7 +1,13 @@
 # --- Project Settings ---
 VERILATOR = verilator
-RTL_DIR   = src/core
+SRC_DIR   = src
 INC_DIR   = src/include
+# RTL 分四區：管線、互連、記憶體階層、週邊。頂層 cpu.sv 直接放在 src/ 下。
+CORE_DIR  = src/core
+BUS_DIR   = src/bus
+MEM_DIR   = src/mem
+PERI_DIR  = src/peri
+RTL_DIRS  = $(SRC_DIR) $(CORE_DIR) $(BUS_DIR) $(MEM_DIR) $(PERI_DIR)
 TEST_DIR  = test
 OBJ_DIR   = obj_dir
 SW_DIR    = $(TEST_DIR)/test_program
@@ -50,13 +56,13 @@ VFLAGS = -Wall $(TRACE_FLAGS) --cc --assert \
 # 常數放在 src/include/*_pkg.sv 的 package 裡，模組用 import 取用。
 # package 必須排在使用它的模組前面編譯，所以每一組來源都以 PKG_SRCS 開頭。
 PKG_SRCS  = $(wildcard $(INC_DIR)/*_pkg.sv)
-RTL_SRCS  = $(PKG_SRCS) $(wildcard $(RTL_DIR)/*.sv)
+RTL_SRCS  = $(PKG_SRCS) $(foreach d,$(RTL_DIRS),$(wildcard $(d)/*.sv))
 CPU_DEPS  = $(RTL_SRCS)
 CORE_DEPS = $(RTL_SRCS)
-IF_DEPS   = $(PKG_SRCS) $(RTL_DIR)/if_stage.sv $(RTL_DIR)/pc.sv   $(RTL_DIR)/mux2.sv
-ID_DEPS   = $(PKG_SRCS) $(RTL_DIR)/id_stage.sv $(RTL_DIR)/ctrl.sv $(RTL_DIR)/decoder.sv $(RTL_DIR)/imm_gen.sv
-EX_DEPS   = $(PKG_SRCS) $(RTL_DIR)/ex_stage.sv $(RTL_DIR)/alu.sv  $(RTL_DIR)/bcu.sv     $(RTL_DIR)/mux2.sv
-WB_DEPS   = $(PKG_SRCS) $(RTL_DIR)/wb_stage.sv $(RTL_DIR)/mux2.sv
+IF_DEPS   = $(PKG_SRCS) $(CORE_DIR)/if_stage.sv $(CORE_DIR)/pc.sv   $(CORE_DIR)/mux2.sv
+ID_DEPS   = $(PKG_SRCS) $(CORE_DIR)/id_stage.sv $(CORE_DIR)/ctrl.sv $(CORE_DIR)/decoder.sv $(CORE_DIR)/imm_gen.sv
+EX_DEPS   = $(PKG_SRCS) $(CORE_DIR)/ex_stage.sv $(CORE_DIR)/alu.sv  $(CORE_DIR)/bcu.sv     $(CORE_DIR)/mux2.sv
+WB_DEPS   = $(PKG_SRCS) $(CORE_DIR)/wb_stage.sv $(CORE_DIR)/mux2.sv
 
 # --- Standard Targets ---
 .PHONY: all clean help style sw_build riscv-tests
@@ -111,7 +117,20 @@ ex_stage: $(EX_DEPS) $(TEST_DIR)/tb_ex_stage.cpp
 wb_stage: $(WB_DEPS) $(TEST_DIR)/tb_wb_stage.cpp
 	@$(MAKE) build_sim MODULE=wb_stage SRCS="$^"
 
-%: $(PKG_SRCS) $(RTL_DIR)/%.sv $(TEST_DIR)/tb_%.cpp
+# 一區一條規則。Make 會挑前提條件實際存在的那一條，所以 make alu 找到
+# src/core/alu.sv、make axil_uart 找到 src/peri/axil_uart.sv，呼叫端不必知道
+# 模組住在哪一區。用 vpath 一條解決也可以，但 match-anything 規則在 make 裡
+# 的行為比較難預測，四條明寫的划算。
+%: $(PKG_SRCS) $(CORE_DIR)/%.sv $(TEST_DIR)/tb_%.cpp
+	@$(MAKE) build_sim MODULE=$* SRCS="$^"
+
+%: $(PKG_SRCS) $(BUS_DIR)/%.sv $(TEST_DIR)/tb_%.cpp
+	@$(MAKE) build_sim MODULE=$* SRCS="$^"
+
+%: $(PKG_SRCS) $(MEM_DIR)/%.sv $(TEST_DIR)/tb_%.cpp
+	@$(MAKE) build_sim MODULE=$* SRCS="$^"
+
+%: $(PKG_SRCS) $(PERI_DIR)/%.sv $(TEST_DIR)/tb_%.cpp
 	@$(MAKE) build_sim MODULE=$* SRCS="$^"
 
 # Internal helper to build and run any simulation

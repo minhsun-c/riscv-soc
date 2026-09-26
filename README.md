@@ -115,7 +115,7 @@ Simulation writes plain `.vcd`, so any viewer works — these all read the same 
 
 ## 🚀 Usage & Verification
 
-The project features a highly automated testing framework. Each `.v` module has a corresponding `tb_*.cpp` testbench in the `test/` directory.
+The project features a highly automated testing framework. Each module under `src/` has a corresponding `tb_*.cpp` testbench in `test/`. The RTL is split into `core/` (pipeline), `bus/` (interconnect), `mem/` (memory hierarchy) and `peri/` (peripherals), with the SoC top in `src/cpu.sv`.
 
 ### Unit Testing
 
