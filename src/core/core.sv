@@ -244,10 +244,10 @@ module core #(
   logic [XLEN-1:0] rf_rs1_data, rf_rs2_data;
   logic [XLEN-1:0] id_rs1_data_o, id_rs2_data_o, id_imm_o;
   logic id_exc_valid, id_is_mret;
-  wire  [     3:0] id_exc_cause;
+  logic  [     3:0] id_exc_cause;
   logic [    11:0] id_csr_addr;
-  wire             id_csr_wen;
-  wire  [     2:0] id_csr_op;
+  logic             id_csr_wen;
+  logic  [     2:0] id_csr_op;
   logic [XLEN-1:0] id_csr_operand;
   logic            id_pred_taken;
   logic [XLEN-1:0] id_pred_target;
@@ -308,10 +308,10 @@ module core #(
   logic [XLEN-1:0] ex_pc  /* verilator public */, ex_pc_plus4, ex_rs1_data, ex_rs2_data, ex_imm;
   logic [4:0] ex_rs1_addr, ex_rs2_addr;
   logic ex_exc_valid_r, ex_is_mret;
-  wire  [     3:0] ex_exc_cause_r;
+  logic  [     3:0] ex_exc_cause_r;
   logic [    11:0] ex_csr_addr;
-  wire             ex_csr_wen;
-  wire  [     2:0] ex_csr_op;
+  logic             ex_csr_wen;
+  logic  [     2:0] ex_csr_op;
   logic [XLEN-1:0] ex_csr_operand;
   logic            ex_pred_taken;
   logic [XLEN-1:0] ex_pred_target;
@@ -458,10 +458,10 @@ module core #(
   logic [2:0] mem_mem_op;
   logic [2:0] mem_rd_src;
   logic mem_exc_valid, mem_is_mret;
-  wire [3:0] mem_exc_cause;
+  logic [3:0] mem_exc_cause;
   logic [11:0] mem_csr_addr;
-  wire mem_csr_wen;
-  wire [2:0] mem_csr_op;
+  logic mem_csr_wen;
+  logic [2:0] mem_csr_op;
   logic [XLEN-1:0] mem_csr_operand;
   logic mem_rd_wen, mem_mem_wen;
 
@@ -542,8 +542,8 @@ module core #(
   logic [3:0] wb_exc_cause  /* verilator public */;
   logic [XLEN-1:0] wb_mtvec  /* verilator public */, wb_mepc  /* verilator public */;
   logic [11:0] wb_csr_addr;
-  wire wb_csr_wen;
-  wire [2:0] wb_csr_op;
+  logic wb_csr_wen;
+  logic [2:0] wb_csr_op;
   logic [XLEN-1:0] wb_csr_operand, wb_csr_rdata;
   logic wb_rd_wen;
 
