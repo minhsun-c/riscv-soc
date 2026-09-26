@@ -6,7 +6,7 @@
 #define MODULE_HAS_CLK 0
 #include "vcd.h"
 
-VerilatedVcdC *m_trace = nullptr;
+TraceFile *m_trace = nullptr;
 vluint64_t sim_time = 0;
 
 static void test_stall(Vstall_ctrl *dut,

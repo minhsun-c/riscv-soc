@@ -6,7 +6,7 @@
 #define MODULE_HAS_CLK 0
 #include "vcd.h"
 
-VerilatedVcdC *m_trace;
+TraceFile *m_trace;
 vluint64_t sim_time;
 
 typedef enum {

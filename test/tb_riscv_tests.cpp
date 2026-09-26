@@ -33,7 +33,7 @@
 
 // vcd.h drives these; tracing stays off unless --trace is passed, and tick()
 // skips dumping while m_trace is null.
-VerilatedVcdC *m_trace = nullptr;
+TraceFile *m_trace = nullptr;
 vluint64_t sim_time = 0;
 
 // ---------------------------------------------------------------------------
@@ -167,7 +167,9 @@ static void dump_regs(Vcore *dut)
 static void usage(const char *argv0)
 {
     fprintf(stderr,
-            "usage: %s <image.bin> [--trace <file.vcd>] [--max-cycles N]\n",
+            "usage: %s <image.bin> [--trace <file>] [--max-cycles N]\n"
+            "  --trace writes .vcd, or .fst when built with TRACE=fst;\n"
+            "          the extension you pass is replaced accordingly.\n",
             argv0);
 }
 
@@ -249,8 +251,8 @@ int main(int argc, char **argv)
                 uint32_t w = mem[addr >> 2];
                 for (int b = 0; b < 4; b++) {
                     if (dut->dm_wstrb_o & (1 << b)) {
-                        w = (w & ~(0xFFu << (8 * b)))
-                            | (dut->dm_wdata_o & (0xFFu << (8 * b)));
+                        w = (w & ~(0xFFu << (8 * b))) |
+                            (dut->dm_wdata_o & (0xFFu << (8 * b)));
                     }
                 }
                 mem[addr >> 2] = w;

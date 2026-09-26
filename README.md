@@ -74,7 +74,42 @@ Ensure your environment (Ubuntu/WSL recommended) has the following installed:
 
 * **Verilator**: `sudo apt install verilator`
 * **Build Essentials**: `sudo apt install build-essential`
-* **GTKWave**: `sudo apt install gtkwave`
+* **A waveform viewer**: see below
+
+### Waveform Viewer
+
+Simulation writes plain `.vcd`, so any viewer works — these all read the same file:
+
+| Environment | Suggested | Install |
+|---|---|---|
+| Linux / WSL | GTKWave | `sudo apt install gtkwave` |
+| macOS | Surfer | `brew install surfer` |
+| Any OS, no install | Surfer VS Code extension | search `surfer-project.surfer` in the marketplace |
+
+> [!WARNING]
+> **GTKWave's official build is incompatible with macOS 14 and later** (unsigned +
+> GTK issues, still unresolved upstream). Use Surfer on a Mac.
+
+> [!WARNING]
+> **Building Verilator from source on Apple Silicon.** Verilator's `configure`
+> hardcodes the absolute path of whichever `python3` it finds into
+> `include/verilated.mk`. If that happens to be an x86_64 Python (e.g. the
+> python.org symlink at `/usr/local/bin/python3`), every `make` fails on a machine
+> without Rosetta, with an error that gives no hint it is Verilator's fault:
+>
+> ```
+> /Library/Frameworks/Python.framework/.../python3: Bad CPU type in executable
+> make: *** [Vxxx__ALL.cpp] Error 126
+> ```
+>
+> Check and fix:
+>
+> ```bash
+> grep PYTHON3 $VERILATOR_ROOT/include/verilated.mk   # must be an arm64 python
+> # if wrong, edit S["PYTHON3"] in config.status and regenerate:
+> #   ./config.status include/verilated.mk
+> # or just use the packaged build: brew install verilator
+> ```
 
 ---
 
@@ -123,5 +158,20 @@ If a test fails, you can generate and view VCD (Value Change Dump) files:
 1. Run the test (e.g., `make core`).
 2. Open the waveform:
 ```bash
-gtkwave waveform.vcd
+surfer core.vcd      # or gtkwave core.vcd
 ```
+
+#### When the trace gets big: `TRACE=fst`
+
+Whole-system traces are large — `core.vcd` measures 4.8 MB. FST cuts that to about
+1/19 with **identical contents**: Verilator emits the same trace-declaration code for
+both formats, so the hierarchy, signals and widths you see are unchanged.
+
+```bash
+make core TESTNUM=1 TRACE=fst    # writes core.fst (249 KB instead of 4.8 MB)
+surfer core.fst
+```
+
+VCD stays the default because it is a text file you can open and read directly; FST is
+binary and only GTKWave and Surfer can load it. Use the default for single modules and
+add `TRACE=fst` for whole-system traces.

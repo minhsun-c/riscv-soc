@@ -26,8 +26,22 @@ else
     PROG_NAME = unknown
 endif
 
+# --- 波形格式 ---
+# 預設 VCD：文字格式，什麼檢視器都讀得動，也可以直接打開來看內容。
+# 整機波形（core / cpu）動輒數 MB，這時改用 make core TRACE=fst ——
+# 訊號內容與 VCD 完全一樣，檔案小一個數量級，代價是只有 GTKWave 與
+# Surfer 讀得動。詳見 test/vcd.h。
+TRACE ?= vcd
+ifeq ($(TRACE),fst)
+    TRACE_FLAGS = --trace-fst -CFLAGS -DTRACE_FST
+else ifeq ($(TRACE),vcd)
+    TRACE_FLAGS = --trace
+else
+    $(error TRACE 只能是 vcd 或 fst，收到 "$(TRACE)")
+endif
+
 # --- Compilation Flags ---
-VFLAGS = -Wall --trace --cc --assert \
+VFLAGS = -Wall $(TRACE_FLAGS) --cc --assert \
          -I$(INC_DIR) \
          -CFLAGS -DTESTNUM=$(TESTNUM) \
          --exe --build -j 0
@@ -46,6 +60,7 @@ WB_DEPS   = $(RTL_DIR)/wb_stage.v  $(RTL_DIR)/mux2.v
 help:
 	@echo "Usage:"
 	@echo "  make core TESTNUM=X  (Run full core simulation)"
+	@echo "  make <target> TRACE=fst  (Write FST instead of VCD -- much smaller)"
 	@echo "  make riscv-tests     (Run the riscv-tests rv32ui suite)"
 	@echo "  make clean           (Clean hardware & software artifacts)"
 
@@ -122,7 +137,7 @@ build_sim_only:
 
 # --- Master Clean ---
 clean:
-	rm -rf obj_dir* *.vcd
+	rm -rf obj_dir* *.vcd *.fst
 	@$(MAKE) -C $(SW_DIR) clean
 	@$(MAKE) -C $(RVT_DIR) clean
 	@echo "Hardware and Software artifacts cleaned."

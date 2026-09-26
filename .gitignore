@@ -46,6 +46,7 @@
 # verilator
 obj_dir*/
 *.vcd
+*.fst
 
 # others
 .DS_Store

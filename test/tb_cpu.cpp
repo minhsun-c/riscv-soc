@@ -23,7 +23,7 @@
 #include "vcd.h"
 
 // Global Simulation State
-VerilatedVcdC *m_trace = nullptr;
+TraceFile *m_trace = nullptr;
 vluint64_t sim_time = 0;
 
 // Memory Pointers: These will be "hotwired" to the Verilog SRAM arrays
